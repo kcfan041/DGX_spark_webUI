@@ -1,0 +1,41 @@
+name: dgxsp-smoke
+
+services:
+  litellm:
+    image: ${LITELLM_IMAGE:-docker.litellm.ai/berriai/litellm:main-stable}
+    container_name: dgxsp-smoke-litellm
+    ports:
+      - "${LITELLM_BIND:-127.0.0.1}:${LITELLM_PORT:-4000}:4000"
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY in smoke/.env}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set LITELLM_SALT_KEY in smoke/.env}
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in smoke/.env}@db:5432/litellm
+      STORE_MODEL_IN_DB: "True"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [smoke]
+
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    container_name: dgxsp-smoke-db
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: litellm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [smoke]
+
+networks:
+  smoke:
+    name: dgxsp-smoke
+
+volumes:
+  pgdata:
+    name: dgxsp-smoke-pgdata

@@ -1,0 +1,25 @@
+name: spark
+description: DGX Spark (ARM64, GB10, unified memory) using eugr/spark-vllm
+
+vllm:
+  image: eugr/spark-vllm:latest
+  pull: true
+  command_prefix: [vllm, serve]
+  gpu: true
+  ipc_host: false
+  shm_size: 16g
+  nofile: 1048576
+  port: 8000
+  model_mount: /models
+  health_timeout_s: 900
+  env:
+    HF_HUB_OFFLINE: "1"
+    VLLM_HOST_IP: 127.0.0.1
+    NCCL_SOCKET_IFNAME: lo
+    GLOO_SOCKET_IFNAME: lo
+    TP_SOCKET_IFNAME: lo
+    NCCL_IB_DISABLE: "1"
+
+gpu_probe:
+  enabled: true
+  timeout_s: 300

@@ -1,0 +1,6 @@
+{
+  "architectures": ["MockForCausalLM"],
+  "model_type": "mock",
+  "max_position_embeddings": 4096,
+  "torch_dtype": "bfloat16"
+}

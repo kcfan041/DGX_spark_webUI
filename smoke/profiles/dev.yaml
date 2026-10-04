@@ -1,0 +1,21 @@
+name: dev
+description: Local development without GPU, using mock-vllm
+
+vllm:
+  image: dgxsp/mock-vllm:dev
+  pull: false
+  command_prefix: [python, /app/mock_vllm.py, serve]
+  gpu: false
+  ipc_host: false
+  shm_size: 64m
+  nofile: 65536
+  port: 8000
+  model_mount: /models
+  health_timeout_s: 120
+  env:
+    HF_HUB_OFFLINE: "1"
+    MOCK_LOAD_SECONDS: "6"
+
+gpu_probe:
+  enabled: false
+  timeout_s: 60
