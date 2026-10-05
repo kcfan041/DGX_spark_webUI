@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Group, Stack, Table, Text, TextInput, Title, Tool
 import { IconAlertTriangle, IconRefresh, IconSearch } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { useModelSources, useModels, useRescanModels } from "@/api/hooks";
 import { QueryState } from "@/components/QueryState";
 import { formatBytes, formatContext } from "@/lib/format";
@@ -72,8 +73,14 @@ export function ModelsPage() {
                   <Table.Td>{m.dtype ?? "—"}</Table.Td>
                   <Table.Td>{m.max_context ? formatContext(m.max_context) : t("common.unknown")}</Table.Td>
                   <Table.Td>
-                    {m.in_use_by.length > 0 ? (
-                      <Badge color="green" variant="light">
+                      {m.in_use_by.length > 0 ? (
+                      <Badge
+                        color="green"
+                        variant="light"
+                        component={Link}
+                        to={m.in_use_by.length === 1 ? `/services/${m.in_use_by[0]}` : "/services"}
+                        style={{ cursor: "pointer" }}
+                      >
                         {t("models.inUse", { count: m.in_use_by.length })}
                       </Badge>
                     ) : (
@@ -83,11 +90,9 @@ export function ModelsPage() {
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Tooltip label={t("common.comingSoon")}>
-                      <Button size="xs" disabled>
-                        {t("models.createService")}
-                      </Button>
-                    </Tooltip>
+                    <Button size="xs" component={Link} to={`/services/new?model=${encodeURIComponent(m.id)}`}>
+                      {t("models.createService")}
+                    </Button>
                   </Table.Td>
                 </Table.Tr>
               ))}

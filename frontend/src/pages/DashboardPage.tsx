@@ -2,7 +2,7 @@ import { Alert, Anchor, Badge, Button, Card, Group, Progress, SimpleGrid, Stack,
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { useInstances, useSystemSummary } from "@/api/hooks";
+import { useAutostart, useCancelAutostart, useInstances, useSystemSummary } from "@/api/hooks";
 import type { InstanceStatus } from "@/api/types";
 import { QueryState } from "@/components/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -19,6 +19,8 @@ export function DashboardPage() {
   const { t } = useTranslation();
   const summary = useSystemSummary();
   const instances = useInstances();
+  const autostart = useAutostart();
+  const cancelAutostart = useCancelAutostart();
   const s = summary.data;
   const running = (instances.data ?? []).filter((i) => !["STOPPED", "CREATED"].includes(i.status));
 
@@ -27,6 +29,30 @@ export function DashboardPage() {
       {s && (
         <Stack>
           <Title order={3}>{t(`health.${s.health}`)}</Title>
+
+          {autostart.data?.state === "running" && (
+            <Alert color="blue">
+              <Group justify="space-between">
+                <Text size="sm">
+                  {t("dashboard.autostartRunning", {
+                    done: Object.keys(autostart.data.results).length,
+                    total: autostart.data.queue.length,
+                  })}
+                </Text>
+                <Button size="xs" variant="default" onClick={() => cancelAutostart.mutate()} loading={cancelAutostart.isPending}>
+                  {t("dashboard.autostartCancel")}
+                </Button>
+              </Group>
+            </Alert>
+          )}
+          {autostart.data?.state === "done" &&
+            Object.values(autostart.data.results).some((r) => r !== "ready") && (
+              <Alert color="yellow">
+                {t("dashboard.autostartFailed", {
+                  count: Object.values(autostart.data.results).filter((r) => r !== "ready").length,
+                })}
+              </Alert>
+            )}
 
           {s.external_services > 0 && (
             <Alert color="yellow" icon={<IconAlertTriangle />}>
@@ -111,7 +137,7 @@ export function DashboardPage() {
                         </Anchor>
                       </Table.Td>
                       <Table.Td>
-                        <StatusBadge status={i.status} />
+                        <StatusBadge instance={i} />
                       </Table.Td>
                       <Table.Td>{i.served_model_name}</Table.Td>
                     </Table.Tr>

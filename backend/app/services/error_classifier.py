@@ -7,6 +7,7 @@ from typing import Any
 import yaml
 
 from app.domain.errors import ErrorCode, InstanceError, Suggestion
+from app.domain.params import MIN_CONTEXT
 
 ERRORISH = re.compile(r"(error|exception|traceback|failed|out of memory)", re.IGNORECASE)
 
@@ -41,6 +42,26 @@ SUGGESTIONS: dict[ErrorCode, list[Suggestion]] = {
     ],
     ErrorCode.UNKNOWN: [Suggestion(action="logs", label_key="errors.common.view_logs")],
 }
+
+
+def tailor_suggestions(err: InstanceError, current: dict[str, Any], model_max_context: int | None) -> InstanceError:
+    """Make generic suggestions concrete for this instance; drop ones that would not change anything."""
+    out: list[Suggestion] = []
+    for s in err.suggestions:
+        patch = dict(s.patch or {})
+        if "max_model_len" in patch:
+            cur = int(current.get("max_model_len") or 0)
+            limits = [int(patch["max_model_len"]), cur // 2 if cur else int(patch["max_model_len"])]
+            if model_max_context:
+                limits.append(model_max_context)
+            target = max(MIN_CONTEXT, min(limits))
+            target -= target % 256
+            if not cur or target >= cur:
+                continue
+            patch["max_model_len"] = target
+            s = s.model_copy(update={"patch": patch, "params": {**s.params, "value": target}})
+        out.append(s)
+    return err.model_copy(update={"suggestions": out})
 
 
 def make_error(

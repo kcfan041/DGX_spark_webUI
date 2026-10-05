@@ -1,0 +1,7 @@
+{
+  "name": "dgxsp-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": { "ui": "node ui-e2e.mjs" },
+  "dependencies": { "playwright": "1.63.0" }
+}

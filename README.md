@@ -58,7 +58,9 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] P0b：Backend / Frontend 骨架、compose、CI
 - [x] P1：模型服務生命週期（Backend）：建立 / 啟動 / 停止 / 重啟 / 取消 / 刪除、健康檢查、LiteLLM 自動註冊、錯誤分類、對帳、開機自動啟動
 - [x] P1 Spark 實機驗證（2026-10-05，`P1 CHECK PASS`）
-- [ ] P2：Frontend 主流程（Wizard、詳細頁、Logs）
+- [x] P2：Frontend 主流程（建立 Wizard、模型服務詳細頁、錯誤卡片與建議、設定編輯、Logs 即時串流、事件、診斷）
+- [ ] P2 Spark 實機 UI 驗證
+- [ ] P3：Gateway 頁（API Key 建立 / 撤銷）
 
 ## mock-vllm 失敗模擬（dev profile）
 

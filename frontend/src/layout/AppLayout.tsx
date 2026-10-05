@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { NavLink as RouterLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSystemSummary } from "@/api/hooks";
 import { useAuth } from "@/auth/AuthContext";
+import { useStatusToasts } from "@/hooks/useStatusToasts";
 
 const NAV = [
   { to: "/dashboard", key: "nav.dashboard", icon: IconLayoutDashboard },
@@ -33,6 +34,7 @@ export function AppLayout() {
   const { logout } = useAuth();
   const summary = useSystemSummary();
   const health = summary.data?.health;
+  useStatusToasts();
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !opened } }} padding="md">

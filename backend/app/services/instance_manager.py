@@ -19,7 +19,7 @@ from app.domain.errors import ErrorCode, InstanceError
 from app.domain.instance import ACTIVE_STATUSES, GatewayState, InstancePhase, InstanceStatus
 from app.domain.params import InstanceParams, build_command
 from app.profiles import RuntimeProfile
-from app.services.error_classifier import ErrorClassifier, make_error
+from app.services.error_classifier import ErrorClassifier, make_error, tailor_suggestions
 from app.services.planner import Plan, PlanInput, Planner
 from app.services.ports import GatewayPort, RuntimePort
 from app.services.probe import Probe
@@ -419,7 +419,10 @@ class InstanceManager:
     async def _fail_from_container(self, instance_id: str, name: str, exit_code: int | None, oom: bool) -> None:
         logs = await asyncio.to_thread(self.runtime.logs, name, 2000)
         err = self.classifier.classify(exit_code=exit_code, oom_killed=oom, logs=logs)
-        await self._deregister(self.get(instance_id))
+        inst = self.get(instance_id)
+        model = self.catalog.get(inst.model_id)
+        err = tailor_suggestions(err, inst.params, model.max_context if model else None)
+        await self._deregister(inst)
         self._set_error(instance_id, err)
 
     async def _register(self, instance_id: str) -> bool:

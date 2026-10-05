@@ -19,7 +19,17 @@
     "copied": "已複製",
     "comingSoon": "此功能將在後續版本提供",
     "lastUpdated": "最後更新 {{time}}",
-    "loadFailed": "資料載入失敗"
+    "loadFailed": "資料載入失敗",
+    "back": "上一步",
+    "next": "下一步",
+    "cancel": "取消",
+    "confirm": "確認",
+    "save": "儲存",
+    "delete": "刪除",
+    "close": "關閉",
+    "yes": "是",
+    "no": "否",
+    "actionFailed": "操作失敗：{{reason}}"
   },
   "login": {
     "title": "管理者登入",
@@ -52,7 +62,10 @@
     "howToConnect": "如何連線",
     "apiBase": "對外 API 位址",
     "needKey": "需要 API Key？前往 Gateway 建立",
-    "externalServices": "偵測到 {{count}} 個非本平台管理的模型服務，它們無法從這裡停止。"
+    "externalServices": "偵測到 {{count}} 個非本平台管理的模型服務，它們無法從這裡停止。",
+    "autostartRunning": "正在依序啟動開機自動啟動的模型服務（{{done}}/{{total}}）",
+    "autostartCancel": "取消剩餘的自動啟動",
+    "autostartFailed": "開機自動啟動：{{count}} 個未成功"
   },
   "status": {
     "CREATED": "已停止",
@@ -60,8 +73,22 @@
     "STARTING": "啟動中",
     "LOADING": "載入中",
     "READY": "就緒",
+    "READY_UNPUBLISHED": "就緒（尚未發布）",
     "STOPPING": "停止中",
     "ERROR": "錯誤"
+  },
+  "gatewayState": {
+    "none": "未發布",
+    "pending": "發布中",
+    "registered": "已發布",
+    "failed": "發布失敗"
+  },
+  "phase": {
+    "preparing": "準備設定",
+    "creating": "建立服務",
+    "loading": "載入模型",
+    "registering": "發布到 Gateway",
+    "ready": "就緒"
   },
   "models": {
     "title": "模型",
@@ -95,13 +122,243 @@
       "status": "狀態",
       "gateway": "Gateway"
     },
-    "autostart": "自動啟動"
+    "filter": {
+      "all": "全部",
+      "ready": "就緒",
+      "loading": "載入中",
+      "error": "錯誤",
+      "stopped": "已停止"
+    },
+    "autostart": "自動啟動",
+    "action": {
+      "start": "啟動",
+      "stop": "停止",
+      "restart": "重新啟動",
+      "cancel": "取消啟動",
+      "handle": "處理",
+      "edit": "編輯設定",
+      "logs": "查看 Log",
+      "delete": "刪除",
+      "retryGateway": "重試發布"
+    },
+    "confirm": {
+      "stopTitle": "停止模型服務",
+      "stopBody": "外部系統將暫時無法呼叫「{{name}}」。確定要停止嗎？",
+      "restartTitle": "重新啟動模型服務",
+      "restartBody": "重新啟動期間，外部系統無法呼叫「{{name}}」。確定要重新啟動嗎？",
+      "deleteTitle": "刪除模型服務",
+      "deleteBody": "刪除後無法復原（模型檔案不會被刪除）。確定要刪除「{{name}}」嗎？",
+      "deleteRunning": "運行中的模型服務需要先停止才能刪除。"
+    },
+    "toast": {
+      "ready": "「{{name}}」已就緒",
+      "error": "「{{name}}」啟動失敗：{{reason}}",
+      "stopped": "「{{name}}」已停止",
+      "deleted": "已刪除「{{name}}」",
+      "saved": "設定已儲存"
+    }
+  },
+  "wizard": {
+    "title": "建立模型服務",
+    "intro": "模型服務（Instance）就是一個正在運作、可透過 API 呼叫的模型。",
+    "step": {
+      "model": "選模型",
+      "preset": "選用途",
+      "settings": "基本設定",
+      "confirm": "確認"
+    },
+    "selectModel": "選擇要提供服務的模型",
+    "selected": "已選擇",
+    "selectPreset": "這個模型主要用來做什麼？",
+    "why": "為什麼是這些值？",
+    "recommended": "推薦",
+    "modified": "（已修改）",
+    "resetPreset": "還原用途預設值",
+    "advanced": "進階設定",
+    "advancedHint": "大多數情況不需要修改",
+    "createAndStart": "建立並啟動模型服務",
+    "saveOnly": "只儲存設定，稍後再啟動",
+    "savedOnly": "設定已儲存，可隨時啟動",
+    "leaveConfirm": "尚未建立的設定將會遺失，確定要離開嗎？",
+    "finalSettings": "最終設定",
+    "showCommand": "顯示實際啟動參數（進階）",
+    "noModels": "沒有可用的模型"
+  },
+  "presets": {
+    "balanced": { "label": "均衡", "description": "一般聊天、問答" },
+    "low_memory": { "label": "省記憶體", "description": "想同時跑多個模型" },
+    "long_context": { "label": "長文件", "description": "需要讀長文件或大量程式碼" },
+    "high_throughput": { "label": "高吞吐", "description": "多人同時使用（第一版與均衡差異有限）" },
+    "custom": { "label": "自訂", "description": "自己調整所有基本設定" },
+    "explain": {
+      "fixed": "固定值 {{value}}",
+      "model_limit": "模型最多支援 {{value}}，因此取 {{value}}",
+      "preset_limit": "此用途上限為 {{value}}（模型支援 {{model_max}}）",
+      "unknown_fallback": "模型資訊不足，使用保守值 {{value}}",
+      "from_source": "依這台主機的設定取 {{value}}",
+      "capped": "取模型上限，但最多 {{value}}"
+    },
+    "context": "最長對話 {{value}}",
+    "memory": "記憶體 {{value}}%"
+  },
+  "params": {
+    "display_name": { "label": "服務名稱", "help": "只用來在畫面上辨識，可以隨意取。" },
+    "served_model_name": {
+      "label": "API 呼叫名稱",
+      "help": "外部系統呼叫時使用的模型名稱。只能用小寫英文、數字、「.」「_」「-」。"
+    },
+    "max_model_len": {
+      "label": "最長對話長度",
+      "help": "一次對話（輸入加輸出）最多能有多少 token。越長越吃記憶體。"
+    },
+    "gpu_memory_utilization": {
+      "label": "記憶體使用比例",
+      "help": "這個模型服務最多可以使用整台機器多少比例的記憶體（GPU 與系統共用）。"
+    },
+    "quantization": { "label": "量化方式", "help": "大多數情況選「自動」即可，平台會依模型檔判斷。" },
+    "dtype": { "label": "資料型別（dtype）", "help": "模型計算時使用的數值精度。一般選 auto。" },
+    "trust_remote_code": {
+      "label": "信任遠端程式碼",
+      "help": "部分模型需要執行模型資料夾內附的 Python 程式碼。只對你信任來源的模型開啟。",
+      "warning": "開啟後會執行模型資料夾內的程式碼，請確認模型來源可信。"
+    },
+    "host_port": { "label": "對外直連 port（除錯用）", "help": "一般不需要設定。外部系統應透過 Gateway 呼叫。" },
+    "extra_args": { "label": "額外啟動參數", "help": "直接加在 vLLM 啟動指令後面。", "warning": "不保證相容，可能導致啟動失敗。" },
+    "autostart": { "label": "Spark 開機時自動啟動此模型服務", "help": "重新開機後會依序自動啟動，不需要人工操作。" },
+    "autostart_order": { "label": "自動啟動順序", "help": "數字小的先啟動。" },
+    "auto": "自動",
+    "autoDetected": "自動（偵測到：{{value}}）"
+  },
+  "warnings": {
+    "level": { "info": "提示", "warning": "警告", "blocking": "無法繼續" },
+    "NAME_INVALID": "API 呼叫名稱「{{name}}」格式不正確",
+    "NAME_DUPLICATE": "API 呼叫名稱「{{name}}」已被其他模型服務使用",
+    "CONTEXT_TOO_SMALL": "最長對話長度至少要 {{min}}",
+    "CONTEXT_MODEL_UNKNOWN": "無法得知模型支援的最長對話長度，請確認設定值",
+    "CONTEXT_EXCEEDS_MODEL": "最長對話長度 {{value}} 超過模型上限 {{max}}",
+    "MEM_UTIL_OUT_OF_RANGE": "記憶體使用比例需介於 {{min}} 與 {{max}} 之間",
+    "REMOTE_CODE_ENABLED": "已開啟「信任遠端程式碼」",
+    "REMOTE_CODE_LIKELY_REQUIRED": "此模型可能需要「信任遠端程式碼」才能啟動",
+    "EXTRA_ARGS_INVALID": "額外啟動參數格式錯誤（引號未配對）",
+    "EXTRA_ARGS_FORBIDDEN": "額外啟動參數不可包含平台管理的參數：{{args}}",
+    "EXTRA_ARGS_PRESENT": "有設定額外啟動參數，平台不保證相容",
+    "HOST_PORT_INVALID": "port {{port}} 不在可用範圍（1024–65535）",
+    "HOST_PORT_CONFLICT": "port {{port}} 已被其他模型服務使用",
+    "WEIGHTS_EXCEED_TOTAL": "模型權重大於這台機器的總記憶體，無法載入",
+    "ESTIMATE_EXCEEDS_BUDGET": "預估需要的記憶體超過此服務的配額，可能啟動失敗",
+    "TOTAL_UTIL_HIGH": "其他運行中的服務已使用 {{others}}，合計 {{combined}}，可能導致啟動失敗",
+    "AVAILABLE_LOW": "此服務配額大於目前系統可用記憶體，可能啟動失敗",
+    "PAGE_CACHE_HIGH": "目前有大量系統快取，立即可用的記憶體較少；若啟動失敗可稍後重試",
+    "AUTOSTART_TOTAL_HIGH": "所有開機自動啟動的服務合計使用 {{combined}}，開機時可能無法全部啟動"
+  },
+  "estimate": {
+    "title": "預估記憶體",
+    "disclaimer": "僅供參考，實際用量以啟動結果為準",
+    "weights": "模型權重",
+    "kv": "對話快取",
+    "overhead": "其他",
+    "total": "合計約",
+    "budget": "此服務配額 {{ratio}}% ≈ {{size}}",
+    "available": "目前系統可用 ≈ {{size}}（立即可用 ≈ {{free}}）"
+  },
+  "detail": {
+    "tabs": {
+      "overview": "概覽",
+      "settings": "設定",
+      "logs": "Logs",
+      "events": "事件",
+      "diagnostics": "診斷"
+    },
+    "uptime": "已運行 {{time}}",
+    "howToUse": "如何使用",
+    "apiBase": "API 位址",
+    "modelName": "模型名稱",
+    "apiKey": "API Key",
+    "apiKeyHint": "使用 Gateway 頁面建立的 API Key",
+    "goGateway": "前往建立",
+    "examples": "範例",
+    "test": "送出測試訊息",
+    "testDefault": "你好，請用一句話自我介紹。",
+    "testOk": "回應成功（{{ms}} ms）",
+    "testFailed": "測試失敗",
+    "testOnlyReady": "模型服務就緒並發布後才能測試",
+    "gateway": "Gateway 發布",
+    "gatewayRegistered": "外部系統可用「{{name}}」呼叫",
+    "gatewayPending": "正在發布到 Gateway…",
+    "gatewayFailed": "尚未發布到 Gateway，外部系統暫時無法呼叫",
+    "gatewayNone": "模型服務未運行，未發布到 Gateway",
+    "resources": "資源",
+    "memoryQuota": "記憶體配額 {{ratio}}%（≈ {{size}}，估算）",
+    "currentSettings": "目前設定",
+    "loadingTitle": "正在載入模型…",
+    "waited": "已等待 {{time}}",
+    "loadingHint": "大模型第一次載入可能需要數分鐘，這是正常的。",
+    "slowHint": "比預期久，建議查看 Log",
+    "latest": "最新訊息",
+    "viewFullLog": "查看完整 Log",
+    "errorCode": "錯誤代碼 {{code}} · 發生於 {{time}}",
+    "relatedLog": "相關 Log 片段",
+    "viewRawLog": "查看原始 Log",
+    "suggestions": "建議",
+    "restartRequired": "變更需要重新啟動才會生效，重新啟動期間外部呼叫會暫時中斷。",
+    "saveAndRestart": "儲存並重新啟動",
+    "saveOnly": "只儲存（下次啟動時生效）",
+    "saveAndRetry": "儲存並重試啟動",
+    "renameWarning": "使用舊名稱「{{name}}」的外部系統將無法呼叫",
+    "noEvents": "還沒有事件",
+    "diag": {
+      "container": "Container",
+      "image": "Image",
+      "internalUrl": "內部 URL",
+      "gatewayId": "LiteLLM model id",
+      "command": "實際啟動指令",
+      "raw": "原始狀態 JSON"
+    },
+    "notFound": "找不到這個模型服務"
+  },
+  "events": {
+    "created": "建立",
+    "updated": "修改設定",
+    "start_requested": "開始啟動",
+    "container_started": "服務已建立，開始載入模型",
+    "model_loaded": "模型載入完成（{{seconds}} 秒）",
+    "gateway_registered": "已發布到 Gateway",
+    "gateway_removed": "已從 Gateway 移除",
+    "gateway_failed": "發布到 Gateway 失敗",
+    "stopped": "已停止",
+    "error": "錯誤：{{code}}",
+    "test_ok": "測試訊息成功（{{latency_ms}} ms）",
+    "test_failed": "測試訊息失敗",
+    "host_restarted": "主機重新啟動",
+    "platform_restarted": "平台重新啟動",
+    "autostart_queued": "自動啟動排隊中",
+    "autostart_ready": "自動啟動：已就緒",
+    "autostart_error": "自動啟動：失敗",
+    "reason": {
+      "manual": "手動",
+      "created": "建立後啟動",
+      "restart": "重新啟動",
+      "cancel": "取消",
+      "autostart": "開機自動啟動"
+    }
+  },
+  "logs": {
+    "title": "Logs",
+    "source": "來源",
+    "live": "即時",
+    "paused": "已暫停",
+    "pause": "暫停",
+    "resume": "繼續",
+    "search": "搜尋",
+    "errorsOnly": "只看錯誤",
+    "download": "下載",
+    "empty": "沒有 Log",
+    "noSource": "請選擇一個模型服務",
+    "explain": "這表示：{{title}}",
+    "streamEnded": "Log 串流已結束（模型服務可能已停止）"
   },
   "gateway": {
     "title": "Gateway（對外 API 入口）"
-  },
-  "logs": {
-    "title": "Logs"
   },
   "settings": {
     "title": "設定",
@@ -117,6 +374,52 @@
   },
   "errors": {
     "UNAUTHORIZED": "登入已失效，請重新登入",
-    "UNKNOWN": "發生未知錯誤"
+    "INVALID_STATE": "目前狀態無法執行此操作",
+    "INSTANCE_RUNNING": "運行中的模型服務需要先停止",
+    "PLAN_BLOCKED": "設定有問題，請檢查警告訊息",
+    "MODEL_NOT_FOUND_API": "找不到模型",
+    "common": {
+      "view_logs": "查看 Log",
+      "restart": "重新啟動"
+    },
+    "OOM": {
+      "title": "模型啟動失敗：可用記憶體不足",
+      "description": "此模型加上目前設定所需的記憶體，超過了可用量。",
+      "suggest": {
+        "reduce_context": "降低最長對話長度至 {{value}} 並重試",
+        "low_memory": "改用「省記憶體」",
+        "view_running": "查看其他運行中的服務"
+      }
+    },
+    "MEMORY_PRECHECK": { "title": "預估記憶體可能不足", "description": "啟動前檢查發現記憶體可能不夠。" },
+    "MODEL_NOT_FOUND": {
+      "title": "找不到模型檔案",
+      "description": "模型資料夾可能被移動或刪除。",
+      "suggest": { "rescan": "重新掃描模型" }
+    },
+    "MODEL_UNSUPPORTED": { "title": "此模型架構目前不支援", "description": "目前的 vLLM 版本無法載入這個模型。" },
+    "REMOTE_CODE_REQUIRED": {
+      "title": "此模型需要「信任遠端程式碼」",
+      "description": "這個模型需要執行模型資料夾內附的程式碼才能載入。",
+      "suggest": { "enable": "開啟「信任遠端程式碼」（請確認來源可信）" }
+    },
+    "HEALTH_TIMEOUT": { "title": "啟動逾時", "description": "模型在預期時間內沒有完成載入。" },
+    "CRASHED": { "title": "模型服務意外停止", "description": "模型服務在啟動或運行中結束了，請查看 Log 了解原因。" },
+    "PORT_CONFLICT": {
+      "title": "對外直連 port 已被占用",
+      "description": "設定的 port 已被其他程式使用。",
+      "suggest": { "clear_port": "清空對外直連 port" }
+    },
+    "IMAGE_UNAVAILABLE": { "title": "執行環境映像檔不存在", "description": "請管理員檢查 vLLM image 是否已下載。" },
+    "GPU_UNAVAILABLE": { "title": "無法使用 GPU", "description": "容器無法取得 GPU，請檢查主機。" },
+    "DOCKER_UNAVAILABLE": { "title": "無法連線容器執行環境", "description": "請檢查主機的 Docker 服務。" },
+    "CONTAINER_MISSING": { "title": "模型服務已被外部移除", "description": "服務的容器被平台以外的方式刪除了。" },
+    "GATEWAY_UNREACHABLE": { "title": "無法連線到 Gateway", "description": "模型已就緒，但無法發布到 Gateway。" },
+    "GATEWAY_REGISTER_FAILED": { "title": "無法發布到 Gateway", "description": "Gateway 拒絕了註冊要求。" },
+    "GATEWAY_MODEL_NOT_FOUND": { "title": "Gateway 找不到此模型", "description": "請重試發布。" },
+    "GATEWAY_PORT_IN_USE": { "title": "Gateway port 被其他程式占用", "description": "請停止占用 port 的程式。" },
+    "TEST_TIMEOUT": { "title": "測試訊息逾時", "description": "模型回應太慢，請稍後再試。" },
+    "AUTOSTART_SKIPPED_MEMORY": { "title": "開機自動啟動已略過", "description": "啟動前檢查發現設定無法使用。" },
+    "UNKNOWN": { "title": "發生未知錯誤", "description": "請查看原始 Log。" }
   }
 }

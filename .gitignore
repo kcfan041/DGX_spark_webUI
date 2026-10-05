@@ -17,6 +17,8 @@ htmlcov/
 
 # Node
 node_modules/
+e2e/*.png
+e2e/package-lock.json
 dist/
 .vite/
 *.tsbuildinfo

@@ -45,6 +45,7 @@ export interface SystemInfo {
   profile: string;
   profile_description: string;
   vllm_image: string;
+  timeouts?: { health_s: number; stop_s: number; slow_warning_s: number };
   docker: Record<string, unknown> | null;
   image: { id: string; repo_digests: string[] | null; architecture: string } | null;
   gateway: SystemSummary["gateway"];
@@ -80,14 +81,156 @@ export interface Instance {
   served_model_name: string;
   model_id: string;
   preset: string;
-  params: Record<string, unknown>;
+  params: InstanceParams;
   autostart: boolean;
   autostart_order: number;
   status: InstanceStatus;
-  phase: string | null;
+  phase: Phase | null;
   phase_started_at: string | null;
-  last_error: Record<string, unknown> | null;
+  last_error: InstanceError | null;
   gateway_state: GatewayState;
   created_at: string;
   updated_at: string;
+  endpoint: { api_base: string; model: string };
+  diagnostics?: {
+    container_name: string | null;
+    container_id: string | null;
+    internal_url: string;
+    image: string;
+    gateway_model_id: string | null;
+    command: string[] | null;
+  } | null;
+}
+
+export type Phase = "preparing" | "creating" | "loading" | "registering" | "ready";
+
+export interface InstanceParams {
+  max_model_len: number;
+  gpu_memory_utilization: number;
+  dtype: string;
+  quantization: string;
+  trust_remote_code: boolean;
+  host_port: number | null;
+  extra_args: string;
+}
+
+export interface Suggestion {
+  action: "edit" | "apply_preset" | "navigate" | "logs" | "restart";
+  label_key: string;
+  patch?: Partial<InstanceParams> | null;
+  preset?: string | null;
+  target?: string | null;
+  params?: Record<string, unknown>;
+}
+
+export interface InstanceError {
+  code: string;
+  severity: "error" | "warning";
+  params: Record<string, unknown>;
+  evidence: string[];
+  suggestions: Suggestion[];
+  occurred_at: string;
+}
+
+export interface Explanation {
+  field: string;
+  key: string;
+  params: Record<string, unknown>;
+}
+
+export interface ResolvedPreset {
+  id: string;
+  label_key: string;
+  description_key: string | null;
+  recommended: boolean;
+  params: InstanceParams;
+  explanations: Explanation[];
+}
+
+export interface ParamField {
+  name: keyof InstanceParams;
+  level: "basic" | "advanced";
+  type: "integer" | "number" | "string" | "boolean" | "select";
+  widget: string;
+  default: unknown;
+  min: number | null;
+  max: number | null;
+  step: number | null;
+  marks: number[];
+  options: string[];
+  unit: string | null;
+  restart_required: boolean;
+  label_key: string;
+  help_key: string;
+}
+
+export type WarningLevel = "info" | "warning" | "blocking";
+
+export interface PlanWarning {
+  code: string;
+  level: WarningLevel;
+  params: Record<string, unknown>;
+}
+
+export interface MemoryEstimate {
+  weights_bytes: number | null;
+  kv_cache_bytes: number | null;
+  overhead_bytes: number;
+  total_bytes: number | null;
+  budget_bytes: number | null;
+  system_total_bytes: number | null;
+  system_available_bytes: number | null;
+  system_free_bytes: number | null;
+  other_services_ratio: number;
+}
+
+export interface PlanInput {
+  model_id: string;
+  preset: string;
+  params: Partial<InstanceParams>;
+  display_name?: string | null;
+  served_model_name?: string | null;
+  autostart: boolean;
+  autostart_order: number;
+}
+
+export interface Plan {
+  model_id: string;
+  preset: string;
+  display_name: string;
+  served_model_name: string;
+  params: InstanceParams;
+  autostart: boolean;
+  autostart_order: number;
+  estimate: MemoryEstimate;
+  warnings: PlanWarning[];
+  command: string[];
+  blocking: boolean;
+}
+
+export interface InstanceEvent {
+  id: number;
+  type: string;
+  data: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface LogLine {
+  ts: string | null;
+  text: string;
+  annotation: string | null;
+}
+
+export interface TestResult {
+  ok: boolean;
+  latency_ms: number | null;
+  reply_preview: string | null;
+  error: string | null;
+}
+
+export interface AutostartProgress {
+  state: "idle" | "running" | "done" | "cancelled";
+  queue: string[];
+  current: string | null;
+  results: Record<string, string>;
 }

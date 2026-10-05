@@ -157,6 +157,23 @@ def test_plan_errors(model: ModelMeta) -> None:
     assert e.value.code == "PRESET_NOT_FOUND"
 
 
+def test_tailor_suggestions() -> None:
+    from app.domain.errors import ErrorCode
+    from app.services.error_classifier import make_error, tailor_suggestions
+
+    err = make_error(ErrorCode.OOM)
+    big = tailor_suggestions(err, {"max_model_len": 32768}, 32768)
+    assert big.suggestions[0].patch == {"max_model_len": 8192}
+    assert big.suggestions[0].params == {"value": 8192}
+
+    small_model = tailor_suggestions(err, {"max_model_len": 4096}, 4096)
+    assert small_model.suggestions[0].patch == {"max_model_len": 2048}
+
+    tiny = tailor_suggestions(err, {"max_model_len": 256}, 4096)
+    assert all(s.patch is None or "max_model_len" not in s.patch for s in tiny.suggestions)
+    assert [s.action for s in tiny.suggestions] == ["apply_preset", "navigate"]
+
+
 def test_classifier_spark_sample() -> None:
     c = ErrorClassifier.from_file(REPO_ROOT / "configs" / "error-patterns.yaml")
     spark_tail = ["RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}"]

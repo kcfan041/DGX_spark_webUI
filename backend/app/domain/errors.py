@@ -33,6 +33,7 @@ class Suggestion(BaseModel):
     patch: dict[str, Any] | None = None
     preset: str | None = None
     target: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
 
 
 class InstanceError(BaseModel):

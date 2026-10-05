@@ -1,7 +1,10 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "@/auth/RequireAuth";
 import { AppLayout } from "@/layout/AppLayout";
+import { CreateServicePage } from "@/pages/CreateServicePage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { LogsPage } from "@/pages/LogsPage";
+import { ServiceDetailPage } from "@/pages/ServiceDetailPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ModelsPage } from "@/pages/ModelsPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
@@ -22,8 +25,10 @@ export function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/models" element={<ModelsPage />} />
         <Route path="/services" element={<ServicesPage />} />
+        <Route path="/services/new" element={<CreateServicePage />} />
+        <Route path="/services/:id" element={<ServiceDetailPage />} />
         <Route path="/gateway" element={<PlaceholderPage titleKey="gateway.title" />} />
-        <Route path="/logs" element={<PlaceholderPage titleKey="logs.title" />} />
+        <Route path="/logs" element={<LogsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

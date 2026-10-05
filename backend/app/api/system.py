@@ -51,6 +51,8 @@ async def info(svc: Svc, _: CurrentPrincipal) -> dict[str, Any]:
         "profile": svc.profile.name,
         "profile_description": svc.profile.description,
         "vllm_image": svc.profile.vllm.image,
+        "timeouts": svc.profile.timeouts.model_dump(),
+        "memory_defaults": svc.profile.memory.model_dump(),
         "docker": await asyncio.to_thread(svc.docker.info) if docker_ok else None,
         "image": await asyncio.to_thread(svc.docker.image_info) if docker_ok else None,
         "gateway": await gateway_status(svc),
