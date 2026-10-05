@@ -152,6 +152,30 @@ scripts/p1-check.sh                           # 預設使用 /data/models/Qwen2.
 
 結果寫在 `smoke/results/p1-check-*.log`。
 
+### 第 1 次：2026-10-05，`P1 CHECK PASS`
+
+模型 `Qwen2.5-0.5B-Instruct`，Low Memory preset，`gpu_memory_utilization=0.3`、`max_model_len=4096`。
+
+| 項目 | 結果 |
+|---|---|
+| 平台 compose（web / backend / litellm / db） | ✅ 正常；summary `health=ok`，Gateway reachable、db connected |
+| 模型掃描 | ✅ `local:Qwen2.5-0.5B-Instruct`，0.93 GB，max context 32768 |
+| 建立並啟動 → READY | ✅ 129 s（STARTING → LOADING → READY） |
+| LiteLLM 自動註冊 | ✅ `sync=ok` |
+| 測試訊息（系統 virtual key → LiteLLM → vLLM） | ✅ 254 ms，回覆正常（中文） |
+| Logs（過濾健康檢查雜訊） | ✅ |
+| 重啟 | ✅ 126 s 後 READY，重新註冊，測試成功 |
+| 停止 | ✅ STOPPED，Gateway 模型數 0 |
+| 刪除 | ✅ 無殘留 container |
+
+觀察 / 待處理：
+
+- **GPU 指標拿不到**（`gpu: null`）：backend container 內沒有 `nvidia-smi`。總覽的 GPU 卡片因此隱藏（符合「拿不到就不顯示」原則）。
+  P2 前要決定：backend 掛 GPU（`device_requests` 只為了讀指標）或改由短命 container / host agent 取得 per-process 用量。
+- **Page cache 很大**：MemAvailable 117.5 GB，但 MemFree 只有 49.7 GB（Cached 66.5 GB）。
+  與 smoke 觀察一致；Planner 的 `PAGE_CACHE_HIGH` 提示在大模型時會出現，實際影響待 7B+ 模型驗證。
+- **0.5B 載入約 2 分鐘**（主要是 compile / CUDA graph）：UI 的「已等待」計時與步驟條是必要的；大模型可能更久。
+
 ### 待補測（P1 之後再做）
 
 - [ ] 7B–8B 模型載入時間與記憶體峰值

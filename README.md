@@ -57,7 +57,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] Spark smoke test（2026-10-05，16/16 PASS）
 - [x] P0b：Backend / Frontend 骨架、compose、CI
 - [x] P1：模型服務生命週期（Backend）：建立 / 啟動 / 停止 / 重啟 / 取消 / 刪除、健康檢查、LiteLLM 自動註冊、錯誤分類、對帳、開機自動啟動
-- [ ] P1 Spark 實機驗證（見 docs/spark-validation.md「P1 驗證」）
+- [x] P1 Spark 實機驗證（2026-10-05，`P1 CHECK PASS`）
 - [ ] P2：Frontend 主流程（Wizard、詳細頁、Logs）
 
 ## mock-vllm 失敗模擬（dev profile）
