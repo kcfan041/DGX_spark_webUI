@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     public_api_base: str = "http://localhost:4000/v1"
 
     cors_origins: list[str] = Field(default_factory=list)
+    manager_enabled: bool = True
 
     @field_validator("hf_cache_dir", "host_hf_cache_dir", mode="before")
     @classmethod

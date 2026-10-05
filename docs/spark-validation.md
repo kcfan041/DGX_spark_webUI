@@ -135,6 +135,23 @@ NVIDIA driver 580.178.04 / CUDA 13.0，Container Toolkit 1.20.1，20 CPU，MemTo
   - 是否需要在啟動前 drop cache（需 root）**不在第一版做**，待更多實測。
 - 待校正：多 instance 同時存在時 `gpu_memory_utilization` 的實際語意、大模型實際峰值。
 
+## 7. P1 驗證（平台主流程）
+
+本機（dev profile + mock-vllm）已驗證：建立並啟動 → 載入中 → 就緒 → LiteLLM 自動註冊 → 經 LiteLLM 測試訊息 →
+log / SSE → 修改設定（需重啟）→ 重啟 → 停止（自動移除註冊）→ 刪除；OOM / CRASHED 錯誤分類；取消載入；
+container 被外部刪除後對帳；重開機後依順序自動啟動。
+
+Spark 上執行：
+
+```bash
+cd ~/projects/DGX_spark_webUI && git pull
+scripts/init-env.sh spark                     # 只有第一次；會印出登入 Token
+docker compose --env-file deploy/.env -f deploy/compose.yaml up -d --build
+scripts/p1-check.sh                           # 預設使用 /data/models/Qwen2.5-0.5B-Instruct
+```
+
+結果寫在 `smoke/results/p1-check-*.log`。
+
 ### 待補測（P1 之後再做）
 
 - [ ] 7B–8B 模型載入時間與記憶體峰值

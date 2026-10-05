@@ -6,7 +6,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import auth, instances, models, system
+from app.api import auth, gateway, instances, models, system
 from app.core.security import build_auth_provider
 from app.core.settings import Settings, get_settings
 from app.db.session import build_engine, init_db
@@ -25,15 +25,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = build_engine(settings.db_url)
         init_db(engine)
         app.state.engine = engine
-        app.state.services = build_services(settings)
+        services = build_services(settings, engine)
+        app.state.services = services
         app.state.auth_provider = build_auth_provider()
         if not settings.admin_token.get_secret_value():
             log.warning("DGXSP_ADMIN_TOKEN is empty: all authenticated endpoints will reject requests")
-        log.info("started profile=%s image=%s", settings.profile, app.state.services.profile.vllm.image)
+        if settings.manager_enabled:
+            await services.manager.startup()
+        log.info("started profile=%s image=%s", settings.profile, services.profile.vllm.image)
         try:
             yield
         finally:
-            await app.state.services.litellm.aclose()
+            await services.aclose()
             engine.dispose()
 
     app = FastAPI(title="DGX Spark LLM Control Platform", version=__version__, lifespan=lifespan)
@@ -54,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(system.router)
     api.include_router(models.router)
     api.include_router(instances.router)
+    api.include_router(gateway.router)
     app.include_router(api)
     return app
 

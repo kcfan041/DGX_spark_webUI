@@ -56,4 +56,14 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] P0a：smoke 工具
 - [x] Spark smoke test（2026-10-05，16/16 PASS）
 - [x] P0b：Backend / Frontend 骨架、compose、CI
-- [ ] P1：instance 建立 / 啟動 / 停止（Backend）
+- [x] P1：模型服務生命週期（Backend）：建立 / 啟動 / 停止 / 重啟 / 取消 / 刪除、健康檢查、LiteLLM 自動註冊、錯誤分類、對帳、開機自動啟動
+- [ ] P1 Spark 實機驗證（見 docs/spark-validation.md「P1 驗證」）
+- [ ] P2：Frontend 主流程（Wizard、詳細頁、Logs）
+
+## mock-vllm 失敗模擬（dev profile）
+
+| `max_model_len` | 行為 |
+|---|---|
+| `1111` | 模擬記憶體不足（vLLM `No available memory for the cache blocks`）→ `OOM` |
+| `2222` | 模擬 vLLM 啟動失敗（只有 `Engine core initialization failed`）→ `CRASHED` |
+| 其他 | 約 8 秒後就緒 |

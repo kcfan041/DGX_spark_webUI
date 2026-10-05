@@ -1,0 +1,45 @@
+# Preset rules resolved against RuntimeProfile (profile.*) and model metadata (model.*).
+# Supported rule keys: value, from, min (list), cap, fallback.
+# Values are first estimates; calibrate with Spark measurements (docs/spark-validation.md).
+
+balanced:
+  label_key: presets.balanced.label
+  description_key: presets.balanced.description
+  recommended: true
+  rules:
+    gpu_memory_utilization: { from: profile.memory.default }
+    max_model_len: { min: [model.max_context, 32768], fallback: 8192 }
+    dtype: { value: auto }
+    quantization: { from: model.quantization, fallback: auto }
+
+low_memory:
+  label_key: presets.low_memory.label
+  description_key: presets.low_memory.description
+  rules:
+    gpu_memory_utilization: { from: profile.memory.low }
+    max_model_len: { min: [model.max_context, 8192], fallback: 4096 }
+    dtype: { value: auto }
+    quantization: { from: model.quantization, fallback: auto }
+
+long_context:
+  label_key: presets.long_context.label
+  description_key: presets.long_context.description
+  rules:
+    gpu_memory_utilization: { from: profile.memory.high }
+    max_model_len: { from: model.max_context, cap: 131072, fallback: 32768 }
+    dtype: { value: auto }
+    quantization: { from: model.quantization, fallback: auto }
+
+high_throughput:
+  label_key: presets.high_throughput.label
+  description_key: presets.high_throughput.description
+  rules:
+    gpu_memory_utilization: { from: profile.memory.high }
+    max_model_len: { min: [model.max_context, 16384], fallback: 8192 }
+    dtype: { value: auto }
+    quantization: { from: model.quantization, fallback: auto }
+
+custom:
+  label_key: presets.custom.label
+  description_key: presets.custom.description
+  inherits: balanced

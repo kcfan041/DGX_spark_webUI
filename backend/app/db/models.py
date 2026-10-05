@@ -41,6 +41,12 @@ class Instance(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow)
 
 
+class SystemSetting(SQLModel, table=True):
+    key: str = Field(primary_key=True)
+    value: str
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
 class InstanceEvent(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     instance_id: str = Field(index=True)

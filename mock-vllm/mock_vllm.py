@@ -30,6 +30,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return args
 
 
+def fail_generic() -> None:
+    print("Traceback (most recent call last):", flush=True)
+    print('  File "/usr/local/lib/python3.12/dist-packages/vllm/v1/engine/utils.py", line 1363', flush=True)
+    print("RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}",
+          flush=True)
+    os._exit(1)
+
+
 def load_model(args: argparse.Namespace) -> None:
     config_path = os.path.join(args.model, "config.json")
     if not os.path.isfile(config_path):
@@ -40,13 +48,13 @@ def load_model(args: argparse.Namespace) -> None:
     for i in range(1, steps + 1):
         time.sleep(seconds / steps)
         log("INFO", f"Loading safetensors checkpoint shards: {i * 100 // steps}% Completed | {i}/{steps}")
-    if args.gpu_memory_utilization < 0.05:
+    fail = os.environ.get("MOCK_FAIL")
+    if args.max_model_len == 1111 or fail == "oom":
         log("ERROR", "ValueError: No available memory for the cache blocks. "
                      "Try increasing `gpu_memory_utilization` when initializing the engine.")
-        os._exit(1)
-    if os.environ.get("MOCK_FAIL") == "oom":
-        log("ERROR", "torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 GiB")
-        os._exit(1)
+        fail_generic()
+    if args.max_model_len == 2222 or fail == "crash":
+        fail_generic()
     STATE["ready"] = True
     log("INFO", "Application startup complete.")
 

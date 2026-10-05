@@ -1,0 +1,49 @@
+# Startup / runtime error classification. First match wins (top to bottom).
+# match:
+#   oom_killed: true            container State.OOMKilled
+#   exit_code: [137]            container exit code
+#   log: [regex, ...]           any line in the full container log (case-insensitive)
+# Add new patterns here when Spark shows new failure shapes; no code change needed.
+
+- code: OOM
+  match: { oom_killed: true }
+- code: OOM
+  match:
+    log:
+      - "out of memory"
+      - "OutOfMemoryError"
+      - "No available memory for the cache blocks"
+      - "insufficient memory"
+      - "Free memory on device .* is less than desired GPU memory utilization"
+      - "Cannot allocate memory"
+- code: OOM
+  match: { exit_code: [137] }
+- code: REMOTE_CODE_REQUIRED
+  match:
+    log:
+      - "trust_remote_code"
+      - "--trust-remote-code"
+- code: MODEL_UNSUPPORTED
+  match:
+    log:
+      - "Model architectures .* are not supported"
+      - "is not supported for now"
+      - "Unsupported model"
+- code: MODEL_NOT_FOUND
+  match:
+    log:
+      - "No config.json found"
+      - "does not appear to have a file named config.json"
+      - "Repository Not Found"
+      - "is not a local folder and is not a valid model identifier"
+- code: GPU_UNAVAILABLE
+  match:
+    log:
+      - "No CUDA GPUs are available"
+      - "could not select device driver"
+      - "CUDA driver initialization failed"
+- code: PORT_CONFLICT
+  match:
+    log:
+      - "address already in use"
+      - "port is already allocated"

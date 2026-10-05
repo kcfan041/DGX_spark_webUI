@@ -22,9 +22,12 @@ class ModelMeta(BaseModel):
     quantization: str | None = None
     dtype: str | None = None
     max_context: int | None = None
+    kv_bytes_per_token: int | None = None
     needs_remote_code: bool = False
     host_path: str
     container_subpath: str
+    mount_host_path: str
+    mount_rel_path: str = ""
 
 
 class SourceInfo(BaseModel):
@@ -76,8 +79,40 @@ def _max_context(cfg: dict[str, Any]) -> int | None:
     return None
 
 
+DTYPE_BYTES = {"float32": 4, "float16": 2, "bfloat16": 2, "float8": 1}
+
+
+def _kv_bytes_per_token(cfg: dict[str, Any]) -> int | None:
+    text_cfg = cfg.get("text_config")
+    src: dict[str, Any] = text_cfg if isinstance(text_cfg, dict) else cfg
+
+    def pos_int(key: str) -> int | None:
+        v = src.get(key)
+        return v if isinstance(v, int) and v > 0 else None
+
+    layers = pos_int("num_hidden_layers")
+    heads = pos_int("num_attention_heads")
+    kv_heads = pos_int("num_key_value_heads") or heads
+    head_dim = pos_int("head_dim")
+    hidden = pos_int("hidden_size")
+    if head_dim is None and hidden and heads:
+        head_dim = hidden // heads
+    if layers is None or kv_heads is None or not head_dim:
+        return None
+    dtype_bytes = DTYPE_BYTES.get(str(src.get("torch_dtype") or cfg.get("torch_dtype") or "bfloat16"), 2)
+    return 2 * layers * kv_heads * head_dim * dtype_bytes
+
+
 def meta_from_dir(
-    model_dir: Path, *, source: str, locator: str, name: str, host_path: str, container_subpath: str
+    model_dir: Path,
+    *,
+    source: str,
+    locator: str,
+    name: str,
+    host_path: str,
+    container_subpath: str,
+    mount_host_path: str | None = None,
+    mount_rel_path: str = "",
 ) -> ModelMeta:
     cfg = parse_config(model_dir)
     archs = cfg.get("architectures") or []
@@ -93,9 +128,12 @@ def meta_from_dir(
         quantization=quant.get("quant_method") if isinstance(quant, dict) else None,
         dtype=cfg.get("torch_dtype") or cfg.get("dtype"),
         max_context=_max_context(cfg),
+        kv_bytes_per_token=_kv_bytes_per_token(cfg),
         needs_remote_code=bool(cfg.get("auto_map")),
         host_path=host_path,
         container_subpath=container_subpath,
+        mount_host_path=mount_host_path or host_path,
+        mount_rel_path=mount_rel_path,
     )
 
 
@@ -171,6 +209,8 @@ class HFCacheSource(ModelSource):
                 name=repo_id,
                 host_path=f"{self.host_hub_dir}/{rel}",
                 container_subpath=rel,
+                mount_host_path=f"{self.host_hub_dir}/{repo.name}",
+                mount_rel_path=snap.relative_to(repo).as_posix(),
             )
             meta.size_bytes = dir_size(repo / "blobs") if (repo / "blobs").is_dir() else meta.size_bytes
             out.append(meta)
