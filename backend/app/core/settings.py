@@ -24,7 +24,9 @@ class Settings(BaseSettings):
 
     litellm_url: str = "http://litellm:4000"
     litellm_master_key: SecretStr = Field(default=SecretStr(""))
-    public_api_base: str = "http://localhost:4000/v1"
+    public_api_base: str = ""
+    gateway_port: int = 4000
+    gateway_bind: str = "0.0.0.0"
 
     cors_origins: list[str] = Field(default_factory=list)
     manager_enabled: bool = True

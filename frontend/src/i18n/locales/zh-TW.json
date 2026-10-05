@@ -3,6 +3,37 @@
     "title": "DGX Spark LLM 控制台",
     "logout": "登出"
   },
+  "apiBase": {
+    "title": "對外 API 位址",
+    "intro": "外部系統（院內系統、OpenCode 等）連線時要填的 API 位址，會顯示在 Gateway 頁與模型服務的「如何使用」。",
+    "current": "目前使用：",
+    "edit": "修改",
+    "autoLabel": "自動偵測（建議）",
+    "autoHelp": "依你開啟這個網頁的位址自動產生。目前偵測到：",
+    "manualLabel": "手動指定",
+    "manualHelp": "有網域名稱、反向代理或對外 IP 與網頁不同時使用。",
+    "deployNote": "目前使用部署設定（deploy/.env 的 PUBLIC_API_BASE）：{{value}}。選擇上方選項並儲存即可在網頁上覆寫。",
+    "reset": "改回部署設定",
+    "saved": "對外 API 位址已更新",
+    "invalid": "格式不正確，請輸入 http:// 或 https:// 開頭的完整網址，例如 http://192.168.1.10:4000/v1",
+    "test": "測試連線",
+    "testOk": "可以連線（{{ms}} ms）",
+    "testFail": {
+      "timeout": "連線逾時：請確認 IP、port 與防火牆",
+      "network": "無法連線：位址錯誤、port 未開放或被防火牆擋住",
+      "http": "Gateway 回應異常（HTTP {{status}}）"
+    },
+    "source": {
+      "auto": "自動",
+      "manual": "手動",
+      "deploy": "部署設定"
+    },
+    "warnings": {
+      "API_BASE_LOCALHOST": "這個位址只有 Spark 本機能用。其他電腦請改用 Spark 的 IP 開啟網頁，或在設定頁手動指定。",
+      "GATEWAY_LOCAL_BIND": "Gateway 目前只開放本機連線（GATEWAY_BIND=127.0.0.1），其他電腦無法呼叫。",
+      "API_BASE_NOT_V1": "位址通常以 /v1 結尾，請確認是否正確。"
+    }
+  },
   "theme": {
     "label": "外觀",
     "light": "亮色",
@@ -429,6 +460,7 @@
     "INVALID_STATE": "目前狀態無法執行此操作",
     "INSTANCE_RUNNING": "運行中的模型服務需要先停止",
     "KEY_NOT_FOUND": "找不到這把 API Key",
+    "API_BASE_INVALID": "對外 API 位址格式不正確",
     "KEY_SYSTEM": "平台內部使用的 Key 無法撤銷",
     "GATEWAY_MODEL_IN_USE": "這個模型仍在使用中，無法清除",
     "PLAN_BLOCKED": "設定有問題，請檢查警告訊息",

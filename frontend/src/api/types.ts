@@ -251,6 +251,25 @@ export interface GatewayModel {
   sync: "ok" | "orphan";
 }
 
+export type ApiBaseSource = "manual" | "deploy" | "auto";
+
+export interface ApiBaseInfo {
+  effective: string;
+  source: ApiBaseSource;
+  mode: "auto" | "manual" | null;
+  manual: string | null;
+  deploy: string | null;
+  auto: string;
+  warnings: string[];
+}
+
+export interface ConnectionInfo {
+  api_base: string;
+  source: ApiBaseSource;
+  warnings: string[];
+  models: string[];
+}
+
 export interface GatewayStatus {
   reachable: boolean;
   db_connected: boolean;

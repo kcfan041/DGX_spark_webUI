@@ -12,6 +12,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useModelSources, useSystemInfo } from "@/api/hooks";
 import { QueryState } from "@/components/QueryState";
+import { ApiBaseCard } from "@/components/settings/ApiBaseCard";
 import { setLanguage, type Language } from "@/i18n";
 
 export function SettingsPage() {
@@ -53,6 +54,8 @@ export function SettingsPage() {
           data-testid="theme-setting"
         />
       </Card>
+
+      <ApiBaseCard />
 
       <Card withBorder>
         <Text fw={600} mb="sm">

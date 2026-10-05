@@ -17,6 +17,7 @@ import {
 import type { ApiKeyInfo } from "@/api/types";
 import { QueryState } from "@/components/QueryState";
 import { CreateKeyModal } from "@/components/gateway/CreateKeyModal";
+import { ApiBaseWarnings, SourceBadge } from "@/components/settings/ApiBaseCard";
 import { CopyValue } from "@/components/service/HowToUse";
 import { useApiErrorNotifier } from "@/hooks/useApiError";
 import { formatTime } from "@/lib/format";
@@ -66,7 +67,16 @@ export function GatewayPage() {
           {t("gateway.connection")}
         </Text>
         <Stack gap="xs">
-          {apiBase && <CopyValue label={t("detail.apiBase")} value={apiBase} />}
+          {apiBase && (
+            <Group gap="xs">
+              <CopyValue label={t("detail.apiBase")} value={apiBase} />
+              {conn.data && <SourceBadge source={conn.data.source} />}
+              <Anchor component={Link} to="/settings" size="sm" data-testid="api-base-edit">
+                {t("apiBase.edit")}
+              </Anchor>
+            </Group>
+          )}
+          {conn.data && <ApiBaseWarnings warnings={conn.data.warnings} />}
           <Group gap={6} align="flex-start">
             <Text size="sm" c="dimmed" w={110}>
               {t("gateway.availableModels")}

@@ -1,7 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
+  ApiBaseInfo,
   ApiKeyInfo,
+  ConnectionInfo,
   AutostartProgress,
   CreatedApiKey,
   GatewayModel,
@@ -179,9 +181,25 @@ export const useGatewayStatus = () =>
 export const useConnectionInfo = () =>
   useQuery({
     queryKey: ["gateway", "connection"],
-    queryFn: () => api<{ api_base: string; models: string[] }>("/gateway/connection-info"),
+    queryFn: () => api<ConnectionInfo>("/gateway/connection-info"),
     refetchInterval: POLL_MS * 2,
   });
+
+export const useApiBase = () =>
+  useQuery({ queryKey: ["settings", "api-base"], queryFn: () => api<ApiBaseInfo>("/settings/api-base") });
+
+export function useUpdateApiBase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { mode: "auto" | "manual" | null; value?: string | null }) =>
+      api<ApiBaseInfo>("/settings/api-base", { method: "PUT", body: JSON.stringify(body) }),
+    onSuccess: (data) => {
+      qc.setQueryData(["settings", "api-base"], data);
+      void qc.invalidateQueries({ queryKey: ["gateway"] });
+      void qc.invalidateQueries({ queryKey: ["instances"] });
+    },
+  });
+}
 
 export const useGatewayModels = () =>
   useQuery({ queryKey: ["gateway", "models"], queryFn: () => api<GatewayModel[]>("/gateway/models"), refetchInterval: POLL_MS * 2 });

@@ -1,12 +1,13 @@
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.adapters.litellm_client import INSTANCE_FIELD, GatewayError
 from app.api.deps import Svc
 from app.api.system import gateway_status
 from app.core.security import CurrentPrincipal
 from app.domain.instance import InstanceStatus
+from app.services import api_base
 from app.services.api_keys import ApiKeyOut, ApiKeyService, CreatedKey, CreateKeyRequest, KeyError_
 
 router = APIRouter(prefix="/gateway", tags=["gateway"])
@@ -22,13 +23,14 @@ async def gateway_state(svc: Svc, _: CurrentPrincipal) -> dict[str, Any]:
 
 
 @router.get("/connection-info")
-def connection_info(svc: Svc, _: CurrentPrincipal) -> dict[str, Any]:
+def connection_info(request: Request, svc: Svc, _: CurrentPrincipal) -> dict[str, Any]:
     ready = [
         i.served_model_name
         for i in svc.manager.all()
         if i.status == InstanceStatus.READY and i.gateway_model_id is not None
     ]
-    return {"api_base": svc.settings.public_api_base, "models": ready}
+    info = api_base.resolve(request, svc.settings, request.app.state.engine)
+    return {"api_base": info.effective, "source": info.source, "warnings": info.warnings, "models": ready}
 
 
 @router.get("/models")

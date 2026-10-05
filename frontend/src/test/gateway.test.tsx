@@ -12,7 +12,7 @@ describe("GatewayPage", () => {
     let keys: unknown[] = [];
     const calls = mockFetch({
       "GET /gateway/status": () => ({ reachable: true, db_connected: true }),
-      "GET /gateway/connection-info": () => ({ api_base: "http://spark:4000/v1", models: ["qwen-small"] }),
+      "GET /gateway/connection-info": () => ({ api_base: "http://spark:4000/v1", source: "auto", warnings: [], models: ["qwen-small"] }),
       "GET /gateway/models": () => [
         { model_name: "qwen-small", gateway_model_id: "m1", instance_id: "i1", instance_name: "Qwen", instance_status: "READY", sync: "ok" },
       ],
@@ -52,7 +52,7 @@ describe("GatewayPage", () => {
   it("disables key creation when gateway is down", async () => {
     mockFetch({
       "GET /gateway/status": () => ({ reachable: false, db_connected: false }),
-      "GET /gateway/connection-info": () => ({ api_base: "http://spark:4000/v1", models: [] }),
+      "GET /gateway/connection-info": () => ({ api_base: "http://spark:4000/v1", source: "auto", warnings: [], models: [] }),
       "GET /gateway/models": () => [],
       "GET /gateway/keys": () => [],
     });

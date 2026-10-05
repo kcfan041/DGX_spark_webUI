@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.api import auth, gateway, instances, models, system
+from app.api import settings as settings_api
 from app.core.security import build_auth_provider
 from app.core.settings import Settings, get_settings
 from app.db.session import build_engine, init_db
@@ -58,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(models.router)
     api.include_router(instances.router)
     api.include_router(gateway.router)
+    api.include_router(settings_api.router)
     app.include_router(api)
     return app
 

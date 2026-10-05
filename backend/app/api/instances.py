@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.adapters.model_sources import ModelMeta
-from app.api.deps import Svc
+from app.api.deps import PublicApiBase, Svc
 from app.core.security import CurrentPrincipal
 from app.db.models import Instance, InstanceEvent
 from app.domain.instance import GatewayState, InstanceStatus
@@ -94,7 +94,7 @@ class LogsOut(BaseModel):
     lines: list[dict[str, Any]]
 
 
-def _out(svc: Svc, inst: Instance, detail: bool = False) -> InstanceOut:
+def _out(svc: Svc, inst: Instance, base: str, detail: bool = False) -> InstanceOut:
     mgr = svc.manager
     diag = None
     if detail:
@@ -131,7 +131,7 @@ def _out(svc: Svc, inst: Instance, detail: bool = False) -> InstanceOut:
                 "updated_at",
             }
         ),
-        endpoint=Endpoint(api_base=svc.settings.public_api_base, model=inst.served_model_name),
+        endpoint=Endpoint(api_base=base, model=inst.served_model_name),
         diagnostics=diag,
     )
 
@@ -185,12 +185,12 @@ def preview(body: PlanInput, svc: Svc, _: CurrentPrincipal, exclude_id: str | No
 
 
 @router.get("/instances", response_model=list[InstanceOut])
-def list_instances(svc: Svc, _: CurrentPrincipal) -> list[InstanceOut]:
-    return [_out(svc, i) for i in svc.manager.all()]
+def list_instances(svc: Svc, base: PublicApiBase, _: CurrentPrincipal) -> list[InstanceOut]:
+    return [_out(svc, i, base) for i in svc.manager.all()]
 
 
 @router.post("/instances", response_model=InstanceOut, status_code=status.HTTP_201_CREATED)
-async def create_instance(body: CreateRequest, svc: Svc, _: CurrentPrincipal) -> InstanceOut:
+async def create_instance(body: CreateRequest, svc: Svc, base: PublicApiBase, _: CurrentPrincipal) -> InstanceOut:
     try:
         plan = svc.manager.plan(body)
         inst = svc.manager.create(plan)
@@ -200,19 +200,21 @@ async def create_instance(body: CreateRequest, svc: Svc, _: CurrentPrincipal) ->
         raise _planning_error(e) from e
     except ConflictError as e:
         raise _conflict(e) from e
-    return _out(svc, inst, detail=True)
+    return _out(svc, inst, base, detail=True)
 
 
 @router.get("/instances/{instance_id}", response_model=InstanceOut)
-def get_instance(instance_id: str, svc: Svc, _: CurrentPrincipal) -> InstanceOut:
+def get_instance(instance_id: str, svc: Svc, base: PublicApiBase, _: CurrentPrincipal) -> InstanceOut:
     try:
-        return _out(svc, svc.manager.get(instance_id), detail=True)
+        return _out(svc, svc.manager.get(instance_id), base, detail=True)
     except NotFoundError as e:
         raise _not_found() from e
 
 
 @router.patch("/instances/{instance_id}", response_model=UpdateResponse)
-async def update_instance(instance_id: str, body: UpdateRequest, svc: Svc, _: CurrentPrincipal) -> UpdateResponse:
+async def update_instance(
+    instance_id: str, body: UpdateRequest, svc: Svc, base: PublicApiBase, _: CurrentPrincipal
+) -> UpdateResponse:
     mgr = svc.manager
     try:
         cur = mgr.get(instance_id)
@@ -236,7 +238,7 @@ async def update_instance(instance_id: str, body: UpdateRequest, svc: Svc, _: Cu
         raise _planning_error(e) from e
     except ConflictError as e:
         raise _conflict(e) from e
-    return UpdateResponse(instance=_out(svc, inst, detail=True), restart_required=restart_required)
+    return UpdateResponse(instance=_out(svc, inst, base, detail=True), restart_required=restart_required)
 
 
 @router.delete("/instances/{instance_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -249,7 +251,7 @@ async def delete_instance(instance_id: str, svc: Svc, _: CurrentPrincipal) -> No
         raise _conflict(e) from e
 
 
-async def _action(svc: Svc, instance_id: str, action: str) -> InstanceOut:
+async def _action(svc: Svc, base: str, instance_id: str, action: str) -> InstanceOut:
     mgr = svc.manager
     fns: dict[str, Callable[[str], Awaitable[Instance]]] = {
         "start": mgr.start,
@@ -264,32 +266,32 @@ async def _action(svc: Svc, instance_id: str, action: str) -> InstanceOut:
         raise _not_found() from e
     except ConflictError as e:
         raise _conflict(e) from e
-    return _out(svc, inst, detail=True)
+    return _out(svc, inst, base, detail=True)
 
 
 @router.post("/instances/{instance_id}/start", response_model=InstanceOut, status_code=202)
-async def start(instance_id: str, svc: Svc, _: CurrentPrincipal) -> InstanceOut:
-    return await _action(svc, instance_id, "start")
+async def start(instance_id: str, svc: Svc, base: PublicApiBase, _: CurrentPrincipal) -> InstanceOut:
+    return await _action(svc, base, instance_id, "start")
 
 
 @router.post("/instances/{instance_id}/stop", response_model=InstanceOut, status_code=202)
-async def stop(instance_id: str, svc: Svc, _: CurrentPrincipal) -> InstanceOut:
-    return await _action(svc, instance_id, "stop")
+async def stop(instance_id: str, svc: Svc, base: PublicApiBase, _: CurrentPrincipal) -> InstanceOut:
+    return await _action(svc, base, instance_id, "stop")
 
 
 @router.post("/instances/{instance_id}/restart", response_model=InstanceOut, status_code=202)
-async def restart(instance_id: str, svc: Svc, _: CurrentPrincipal) -> InstanceOut:
-    return await _action(svc, instance_id, "restart")
+async def restart(instance_id: str, svc: Svc, base: PublicApiBase, _: CurrentPrincipal) -> InstanceOut:
+    return await _action(svc, base, instance_id, "restart")
 
 
 @router.post("/instances/{instance_id}/cancel", response_model=InstanceOut, status_code=202)
-async def cancel(instance_id: str, svc: Svc, _: CurrentPrincipal) -> InstanceOut:
-    return await _action(svc, instance_id, "cancel")
+async def cancel(instance_id: str, svc: Svc, base: PublicApiBase, _: CurrentPrincipal) -> InstanceOut:
+    return await _action(svc, base, instance_id, "cancel")
 
 
 @router.post("/instances/{instance_id}/gateway/retry", response_model=InstanceOut)
-async def gateway_retry(instance_id: str, svc: Svc, _: CurrentPrincipal) -> InstanceOut:
-    return await _action(svc, instance_id, "gateway/retry")
+async def gateway_retry(instance_id: str, svc: Svc, base: PublicApiBase, _: CurrentPrincipal) -> InstanceOut:
+    return await _action(svc, base, instance_id, "gateway/retry")
 
 
 @router.get("/instances/{instance_id}/events", response_model=list[EventOut])
