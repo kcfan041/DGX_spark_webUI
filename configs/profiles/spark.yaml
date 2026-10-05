@@ -1,0 +1,38 @@
+name: spark
+description: DGX Spark (ARM64, GB10, unified memory)
+
+vllm:
+  # Verified by smoke test 2026-10-05 (vLLM 0.30.1rc1.dev631). Change digest -> re-run smoke.
+  image: eugr/spark-vllm@sha256:311616bd5f4f18a72ed1d309161fa504a7e6e1752d916d25395aadbf5a92b6ef
+  pull: true
+  command_prefix: [vllm, serve]
+  gpu: true
+  ipc_host: false
+  shm_size: 16g
+  nofile: 1048576
+  port: 8000
+  model_mount: /models
+  env:
+    HF_HUB_OFFLINE: "1"
+    VLLM_HOST_IP: 127.0.0.1
+    NCCL_SOCKET_IFNAME: lo
+    GLOO_SOCKET_IFNAME: lo
+    TP_SOCKET_IFNAME: lo
+    NCCL_IB_DISABLE: "1"
+
+timeouts:
+  health_s: 900
+  stop_s: 30
+  slow_warning_s: 300
+
+memory:
+  low: 0.4
+  default: 0.7
+  high: 0.85
+  min: 0.1
+  max: 0.95
+  total_warning: 0.9
+
+monitoring:
+  memory_source: procfs
+  gpu_source: nvidia_smi

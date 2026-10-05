@@ -1,0 +1,122 @@
+{
+  "app": {
+    "title": "DGX Spark LLM 控制台",
+    "logout": "登出"
+  },
+  "nav": {
+    "dashboard": "總覽",
+    "models": "模型",
+    "services": "模型服務",
+    "gateway": "Gateway",
+    "logs": "Logs",
+    "settings": "設定"
+  },
+  "common": {
+    "loading": "載入中…",
+    "retry": "重試",
+    "unknown": "未知",
+    "copy": "複製",
+    "copied": "已複製",
+    "comingSoon": "此功能將在後續版本提供",
+    "lastUpdated": "最後更新 {{time}}",
+    "loadFailed": "資料載入失敗"
+  },
+  "login": {
+    "title": "管理者登入",
+    "tokenLabel": "管理者 Token",
+    "tokenPlaceholder": "請輸入部署時設定的管理者 Token",
+    "submit": "登入",
+    "invalid": "Token 不正確",
+    "networkError": "無法連線到平台後端"
+  },
+  "health": {
+    "ok": "系統運作正常",
+    "attention": "有模型服務需要處理",
+    "gateway_unreachable": "Gateway 無法連線",
+    "runtime_error": "執行環境異常（無法連線容器執行環境）"
+  },
+  "dashboard": {
+    "spark": "DGX Spark",
+    "memory": "記憶體",
+    "memoryShared": "GPU 與系統共用",
+    "memoryCached": "其中可回收快取 {{size}}",
+    "disk": "磁碟",
+    "diskModels": "模型目錄",
+    "gateway": "Gateway",
+    "gatewayOk": "正常",
+    "gatewayDown": "無法連線",
+    "gpuUtil": "GPU 使用率 {{pct}}%",
+    "runningServices": "運行中的模型服務",
+    "noRunning": "還沒有運行中的模型服務",
+    "goModels": "前往選擇模型",
+    "howToConnect": "如何連線",
+    "apiBase": "對外 API 位址",
+    "needKey": "需要 API Key？前往 Gateway 建立",
+    "externalServices": "偵測到 {{count}} 個非本平台管理的模型服務，它們無法從這裡停止。"
+  },
+  "status": {
+    "CREATED": "已停止",
+    "STOPPED": "已停止",
+    "STARTING": "啟動中",
+    "LOADING": "載入中",
+    "READY": "就緒",
+    "STOPPING": "停止中",
+    "ERROR": "錯誤"
+  },
+  "models": {
+    "title": "模型",
+    "search": "搜尋模型",
+    "rescan": "重新掃描",
+    "createService": "建立模型服務",
+    "col": {
+      "name": "名稱",
+      "size": "大小",
+      "architecture": "架構",
+      "quantization": "量化",
+      "dtype": "dtype",
+      "maxContext": "最長 Context",
+      "usage": "使用狀態"
+    },
+    "inUse": "使用中（{{count}}）",
+    "unused": "未使用",
+    "remoteCode": "可能需要「信任遠端程式碼」",
+    "empty": "模型目錄中還沒有模型。",
+    "emptyHint": "請將模型資料夾（含 config.json 與權重檔）放到：{{path}}，然後按「重新掃描」。"
+  },
+  "services": {
+    "title": "模型服務",
+    "intro": "模型服務（Instance）是一個正在運作、可透過 API 呼叫的模型。",
+    "create": "建立模型服務",
+    "empty": "還沒有模型服務。",
+    "fromModel": "從模型建立",
+    "col": {
+      "name": "名稱",
+      "model": "模型",
+      "status": "狀態",
+      "gateway": "Gateway"
+    },
+    "autostart": "自動啟動"
+  },
+  "gateway": {
+    "title": "Gateway（對外 API 入口）"
+  },
+  "logs": {
+    "title": "Logs"
+  },
+  "settings": {
+    "title": "設定",
+    "general": "一般",
+    "language": "介面語言",
+    "showTech": "顯示技術細節",
+    "runtime": "執行環境",
+    "profile": "Profile",
+    "image": "vLLM image",
+    "sources": "模型來源",
+    "about": "關於",
+    "version": "平台版本"
+  },
+  "errors": {
+    "UNAUTHORIZED": "登入已失效，請重新登入",
+    "UNKNOWN": "發生未知錯誤"
+  }
+}

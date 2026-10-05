@@ -1,0 +1,114 @@
+import logging
+import shutil
+import subprocess
+from pathlib import Path
+
+from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
+
+
+class MemoryStats(BaseModel):
+    total_bytes: int
+    available_bytes: int
+    free_bytes: int
+    cached_bytes: int
+    swap_total_bytes: int
+    swap_free_bytes: int
+
+    @property
+    def used_bytes(self) -> int:
+        return self.total_bytes - self.available_bytes
+
+
+class DiskStats(BaseModel):
+    path: str
+    total_bytes: int
+    used_bytes: int
+    free_bytes: int
+
+
+class GpuStats(BaseModel):
+    name: str | None = None
+    driver: str | None = None
+    utilization_pct: float | None = None
+    processes: list[dict[str, object]] = []
+
+
+def read_meminfo(path: Path = Path("/proc/meminfo")) -> MemoryStats | None:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    vals: dict[str, int] = {}
+    for line in raw.splitlines():
+        key, _, rest = line.partition(":")
+        parts = rest.split()
+        if parts and parts[0].isdigit():
+            vals[key.strip()] = int(parts[0]) * (1024 if len(parts) > 1 and parts[1] == "kB" else 1)
+    if "MemTotal" not in vals:
+        return None
+    return MemoryStats(
+        total_bytes=vals["MemTotal"],
+        available_bytes=vals.get("MemAvailable", vals.get("MemFree", 0)),
+        free_bytes=vals.get("MemFree", 0),
+        cached_bytes=vals.get("Cached", 0) + vals.get("Buffers", 0),
+        swap_total_bytes=vals.get("SwapTotal", 0),
+        swap_free_bytes=vals.get("SwapFree", 0),
+    )
+
+
+def read_disk(path: Path) -> DiskStats | None:
+    try:
+        usage = shutil.disk_usage(path)
+    except OSError:
+        return None
+    return DiskStats(path=str(path), total_bytes=usage.total, used_bytes=usage.used, free_bytes=usage.free)
+
+
+def _nvsmi(args: list[str]) -> list[list[str]] | None:
+    if not shutil.which("nvidia-smi"):
+        return None
+    try:
+        cmd = ["nvidia-smi", *args, "--format=csv,noheader,nounits"]
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=5, check=True).stdout
+    except (subprocess.SubprocessError, OSError) as e:
+        log.debug("nvidia-smi failed: %s", e)
+        return None
+    return [[c.strip() for c in line.split(",")] for line in out.strip().splitlines() if line.strip()]
+
+
+def _num(v: str) -> float | None:
+    try:
+        return float(v)
+    except ValueError:
+        return None
+
+
+def read_gpu() -> GpuStats | None:
+    rows = _nvsmi(["--query-gpu=name,driver_version,utilization.gpu"])
+    if not rows:
+        return None
+    name, driver, util = (rows[0] + [None, None, None])[:3]
+    procs = []
+    for r in _nvsmi(["--query-compute-apps=pid,process_name,used_memory"]) or []:
+        if len(r) >= 3:
+            mib = _num(r[2])
+            procs.append({"pid": r[0], "name": r[1], "used_bytes": int(mib * 2**20) if mib is not None else None})
+    return GpuStats(name=name, driver=driver, utilization_pct=_num(util or ""), processes=procs)
+
+
+class MetricsProvider:
+    def __init__(self, gpu_source: str, meminfo_path: Path, disk_path: Path) -> None:
+        self.gpu_source = gpu_source
+        self.meminfo_path = meminfo_path
+        self.disk_path = disk_path
+
+    def memory(self) -> MemoryStats | None:
+        return read_meminfo(self.meminfo_path)
+
+    def disk(self) -> DiskStats | None:
+        return read_disk(self.disk_path)
+
+    def gpu(self) -> GpuStats | None:
+        return read_gpu() if self.gpu_source == "nvidia_smi" else None

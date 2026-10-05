@@ -1,0 +1,83 @@
+name: dgxsp
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *restart
+    build: ../frontend
+    image: dgxsp/web:${DGXSP_VERSION:-dev}
+    ports:
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8088}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [dgxsp]
+
+  backend:
+    <<: *restart
+    build: ../backend
+    image: dgxsp/backend:${DGXSP_VERSION:-dev}
+    environment:
+      DGXSP_PROFILE: ${DGXSP_PROFILE:-spark}
+      DGXSP_ADMIN_TOKEN: ${DGXSP_ADMIN_TOKEN:?set DGXSP_ADMIN_TOKEN in deploy/.env}
+      DGXSP_HOST_MODEL_ROOT: ${MODEL_ROOT:?set MODEL_ROOT in deploy/.env}
+      DGXSP_MODEL_ROOT: /models
+      DGXSP_HF_CACHE_DIR: ${HF_CACHE_DIR:+/hf-cache}
+      DGXSP_HOST_HF_CACHE_DIR: ${HF_CACHE_DIR:-}
+      DGXSP_DOCKER_NETWORK: dgxsp
+      DGXSP_LITELLM_URL: http://litellm:4000
+      DGXSP_LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY in deploy/.env}
+      DGXSP_PUBLIC_API_BASE: ${PUBLIC_API_BASE:-http://localhost:4000/v1}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${MODEL_ROOT}:/models:ro
+      - ${HF_CACHE_DIR:-./.empty-hf-cache}:/hf-cache:ro
+      - ../configs:/app/configs:ro
+      - backend-data:/data
+    depends_on:
+      litellm:
+        condition: service_started
+    networks: [dgxsp]
+
+  litellm:
+    <<: *restart
+    image: ${LITELLM_IMAGE:-docker.litellm.ai/berriai/litellm:main-stable}
+    ports:
+      - "${GATEWAY_BIND:-0.0.0.0}:${GATEWAY_PORT:-4000}:4000"
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set LITELLM_SALT_KEY in deploy/.env}
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}@db:5432/litellm
+      STORE_MODEL_IN_DB: "True"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [dgxsp]
+
+  db:
+    <<: *restart
+    image: postgres:16
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: litellm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [dgxsp]
+
+networks:
+  dgxsp:
+    name: dgxsp
+
+volumes:
+  backend-data:
+    name: dgxsp-backend-data
+  pgdata:
+    name: dgxsp-pgdata

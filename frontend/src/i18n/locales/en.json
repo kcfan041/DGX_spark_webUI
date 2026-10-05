@@ -1,0 +1,14 @@
+{
+  "app": {
+    "title": "DGX Spark LLM Console",
+    "logout": "Log out"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "models": "Models",
+    "services": "Model Services",
+    "gateway": "Gateway",
+    "logs": "Logs",
+    "settings": "Settings"
+  }
+}

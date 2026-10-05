@@ -1,0 +1,13 @@
+# Local development override (no GPU, mock-vllm). Usage:
+#   docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.dev.yaml up -d --build
+services:
+  backend:
+    environment:
+      DGXSP_PROFILE: dev
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  mock-vllm-image:
+    build: ../mock-vllm
+    image: dgxsp/mock-vllm:dev
+    profiles: [build-only]
