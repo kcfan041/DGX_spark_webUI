@@ -93,18 +93,52 @@ dgxsp-smoke-vllm ──(network: dgxsp-smoke, bridge)── dgxsp-smoke-litellm 
 | `/key/generate` → `/key/delete` → 舊 key 回 401 | ✅ |
 | `/model/delete` 後 `/model/info` 不再出現 | ✅ |
 
-## 6. 結果紀錄（Spark 實測後填寫）
+## 6. 結果紀錄
+
+### 第 1 次：2026-10-05，`OVERALL: PASS`（16/16）
+
+主機：DGX Spark `spark-9526`，Ubuntu 24.04.5，kernel 7.0.0-1019-nvidia，Docker 29.6.2，Compose 5.2.0，
+NVIDIA driver 580.178.04 / CUDA 13.0，Container Toolkit 1.20.1，20 CPU，MemTotal 121.7 GB，Swap 16 GB，cgroup v2。
 
 | 項目 | 結果 | 對 Backend 設計的決定 |
 |---|---|---|
-| vLLM image digest | | profile 鎖定 |
-| vLLM 版本 | | |
-| GPU 掛載寫法（device_requests） | | |
-| 是否需要 `--ipc=host` | | |
-| bridge network 可用 | | |
-| `torch.cuda.mem_get_info` 數值 | | 資源監控資料來源 |
-| `nvidia-smi` 記憶體欄位是否有值 | | 資源監控資料來源 |
-| 0.5B 模型載入時間 | | 健康檢查逾時預設 |
-| 模型目錄 UID / 權限 | | MODEL_ROOT 規範 |
-| 啟動失敗樣本（exit code / log） | | `error-patterns.yaml` |
-| stop 耗時 | | stop timeout 預設 |
+| vLLM image | `eugr/spark-vllm@sha256:311616bd5f4f18a72ed1d309161fa504a7e6e1752d916d25395aadbf5a92b6ef`（arm64，10.5 GB，pull 195 s） | spark profile 鎖定此 digest；升版走「改 digest → 重跑 smoke」 |
+| vLLM 版本 | `0.30.1rc1.dev631+g0872ddf4b`，torch 2.13.0+cu130，capability 12.1 | 記錄於 系統資訊 |
+| Image 設定 | entrypoint `/opt/nvidia/nvidia_entrypoint.sh`、無 Cmd、root、WORKDIR `/workspace/vllm` | Backend 一律明確指定 `vllm serve ...` 作為 command |
+| GPU 掛載 | Docker **未登錄 nvidia runtime**（只有 runc），但 `device_requests=[DeviceRequest(count=-1, capabilities=[["gpu"]])]` 可用 | DockerRuntime adapter 採 device_requests，不依賴 `runtime=nvidia` |
+| `--ipc=host` / `--privileged` | 皆**不需要**；`shm_size=16g` + `ulimit nofile=1048576` 即可 | 預設非特權模式；`ipc_host` 保留為 profile 選項 |
+| bridge network | ✅ vLLM 不開主機 port，LiteLLM 以 `http://<container>:8000/v1` 連線 | 平台內部網路 + container 名稱定址 |
+| 模型掛載 / 權限 | `/data/models` 1000:1000 755；container 內 root 唯讀讀取 OK | `MODEL_ROOT=/data/models`，ro 掛載 |
+| 載入時間（0.5B） | 123 s（含 CUDA graph / compile） | 健康檢查逾時預設 900 s；UI「已等待」計時有必要 |
+| 健康判斷 | `/health` 200 後 `/v1/models` 立即列出 served name | READY = `/health` 200 且 `/v1/models` 含名稱 |
+| LiteLLM 註冊 | `/model/new` 回 `model_id`；`/model/info` 保留自訂欄位 `dgxsp_instance_id`、`dgxsp_managed` | 以 `model_info.dgxsp_*` 做對帳 |
+| 對話路徑 | virtual key → LiteLLM → vLLM：186 ms，回應正常 | 「送出測試訊息」採同一路徑 |
+| Virtual key | `/key/generate` → `/key/delete` 後舊 key 回 401 | Gateway API Key 功能可行 |
+| Log | tail 與 follow stream 皆可；vLLM 每個 HTTP 請求都會寫 access log | Log 頁需「只看錯誤 / 過濾」；預設過濾 `/health`、`/v1/models` 輪詢雜訊 |
+| Stop | 0.9 s，exit code 0 | stop timeout 30 s 足夠 |
+| 刻意失敗（`gpu_memory_utilization=0.01`） | 81.5 s 後 exit 1，`OOMKilled=false`；尾段只看到 `RuntimeError: Engine core initialization failed. See root cause above.` | 錯誤分類**不能只看最後幾行**，需掃描完整 log 找 root cause（已改 smoke 收集更多 log） |
+
+### 記憶體觀察（需要後續校正，**不是結論**）
+
+| 來源 | 數值 |
+|---|---|
+| `nvidia-smi` Memory-Usage | `Not Supported`（GB10 unified memory），只有每個 process 的用量 |
+| `/proc/meminfo`（preflight） | MemTotal 121.7 GB，MemFree 76.8 GB，MemAvailable 118.3 GB，Cached 40.6 GB |
+| `torch.cuda.mem_get_info()`（GPU probe，pull 完 10 GB image 後） | free **50.2 GB** / total 121.7 GB |
+
+- `mem_get_info` 的 free 明顯小於 MemAvailable，推測接近 MemFree（**不含可回收的 page cache**）。
+  剛 pull 完 10 GB image、讀完模型檔，page cache 變大，CUDA 視角的可用記憶體就變小。
+- 影響：vLLM 依 `gpu_memory_utilization × total` 配置；若 page cache 佔用大，可能出現「系統看起來很空卻啟動失敗」。
+- 第一版處理：
+  - 資源監控以 `/proc/meminfo` 為主（顯示 已用 / 可用 / 快取），per-process 用量取 `nvidia-smi --query-compute-apps`。
+  - Step 4 預估同時顯示「系統可用（含快取）」與「立即可用（MemFree）」，差距大時給 info 提示。
+  - 是否需要在啟動前 drop cache（需 root）**不在第一版做**，待更多實測。
+- 待校正：多 instance 同時存在時 `gpu_memory_utilization` 的實際語意、大模型實際峰值。
+
+### 待補測（P1 之後再做）
+
+- [ ] 7B–8B 模型載入時間與記憶體峰值
+- [ ] 兩個 instance 同時運行
+- [ ] 真正的記憶體不足（OOM）樣本與 `OOMKilled` 行為
+- [ ] 量化模型（FP8 / NVFP4 / AWQ）
+- [ ] Spark 重開機後平台自動復原（autostart）

@@ -2,7 +2,8 @@ name: spark
 description: DGX Spark (ARM64, GB10, unified memory) using eugr/spark-vllm
 
 vllm:
-  image: eugr/spark-vllm:latest
+  # Verified by smoke test 2026-10-05 (vLLM 0.30.1rc1.dev631). Change digest -> re-run smoke.
+  image: eugr/spark-vllm@sha256:311616bd5f4f18a72ed1d309161fa504a7e6e1752d916d25395aadbf5a92b6ef
   pull: true
   command_prefix: [vllm, serve]
   gpu: true

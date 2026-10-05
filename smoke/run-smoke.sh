@@ -53,9 +53,6 @@ if [[ "$PROFILE" == "dev" ]]; then
   docker build -q -t "$MOCK_IMAGE" "$ROOT/mock-vllm" >/dev/null
 fi
 
-echo "== start gateway (LiteLLM + Postgres)"
-"${COMPOSE[@]}" up -d
-
 cleanup() {
   if [[ "${SMOKE_KEEP_GATEWAY:-0}" != "1" ]]; then
     echo "== stop gateway"
@@ -63,6 +60,9 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+echo "== start gateway (LiteLLM + Postgres)"
+"${COMPOSE[@]}" up -d
 
 echo "== run smoke ($PROFILE)"
 set +e
@@ -74,6 +74,7 @@ docker run --rm \
   -v "$RESULTS:/results" \
   --env-file "$ENV_FILE" \
   -e LITELLM_URL=http://litellm:4000 \
+  -e SMOKE_STAMP="$STAMP" \
   "$RUNNER_IMAGE" --profile "$PROFILE"
 rc=$?
 set -e

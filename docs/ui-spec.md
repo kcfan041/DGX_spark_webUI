@@ -126,6 +126,9 @@ UI 顯示左欄用語；文件、程式碼、API 內部使用右欄。
 - 記憶體卡片標註「GPU 與系統共用」（Spark unified memory）。
 - 空狀態：「還沒有運行中的模型服務」＋ [前往選擇模型]。
 - 不顯示 container、image、內部 URL 等技術資訊。
+- 記憶體卡片：以 `/proc/meminfo` 為準，顯示「已使用 / 總量」，副標「其中可回收快取 X GB」（`nvidia-smi` 在 GB10 不提供總量）。
+- 開機自動啟動進行中時，在健康摘要下方顯示：「正在依序啟動 2 個自動啟動的模型服務（1/2）」。
+- 偵測到外部服務時顯示提示卡（見 9.2）。
 
 ### 3.2 模型 Models
 
@@ -405,7 +408,8 @@ Step 1 選模型 ─► Step 2 選用途 ─► Step 3 基本設定 ─► Step 
 |---|---|---|
 | 用途（Preset） | balanced / low_memory / long_context / high_throughput / custom | Step 2 卡片 |
 | 基本 | 服務名稱、API 呼叫名稱、最長對話長度、記憶體使用比例、量化方式 | Step 3 直接顯示 |
-| 進階（收起） | dtype、信任遠端程式碼（開啟時顯示安全警告）、對外直連 port（除錯用，預設空）、額外啟動參數（附「不保證相容」警告） | 展開才顯示 |
+| 基本（服務行為） | 開機自動啟動（Switch，預設關閉） | Step 3 底部、設定分頁 |
+| 進階（收起） | dtype、信任遠端程式碼（開啟時顯示安全警告）、對外直連 port（除錯用，預設空）、額外啟動參數（附「不保證相容」警告）、自動啟動順序（數字） | 展開才顯示 |
 | 未來擴充（進階） | max_num_seqs、kv_cache_dtype、prefix caching、chunked prefill、tool / reasoning parser、speculative decoding | 由 schema 新增，前端不改程式 |
 | 僅診斷 | container、network、內部 port、LiteLLM model id、image digest、完整 CLI | 唯讀 |
 
@@ -465,7 +469,7 @@ custom:
 
 - 計算：`PresetResolver(profile, model_meta, preset) → { params, explanations[] }`。
 - 第一版規則僅支援 `value` / `from` / `min` / `cap` / `fallback`；結構預留更複雜的規則。
-- 實際數值待 Spark smoke test 後校正。
+- 實際數值待更多 Spark 實測校正（0.5B 模型 `gpu_memory_utilization=0.3` 已驗證可用；見 `docs/spark-validation.md`）。
 
 ---
 
@@ -571,6 +575,11 @@ Backend 回傳結構化錯誤，前端依 `code` 查 i18n：
 | `GET /gateway/keys` | API Key 清單（遮罩） |
 | `POST /gateway/keys` | 建立 API Key；**回應中完整 key 只出現這一次** |
 | `POST /gateway/keys/{key_id}/revoke` | 撤銷 API Key |
+| `GET /system/external` | 偵測到的外部（非平台管理）服務：名稱、image、port、估計記憶體 |
+| `GET /system/autostart` | 開機自動啟動進度：佇列、目前項目、結果 |
+| `POST /system/autostart/cancel` | 取消剩餘的自動啟動 |
+
+Instance 設定欄位新增：`autostart: bool`（預設 false）、`autostart_order: int`（預設 100，小的先啟動）。
 
 ### 7.2 API Key（LiteLLM Virtual Key）實作要點
 
@@ -606,7 +615,60 @@ Backend 回傳結構化錯誤，前端依 `code` 查 i18n：
 
 ---
 
-## 9. MVP 範圍外（預留，不實作）
+## 9. 開機自動啟動與外部服務
+
+### 9.1 開機自動啟動（Autostart）
+
+使用者情境：Spark 停電 / 重開機後，院內系統依賴的模型應自動恢復，不需要有人登入 UI。
+
+**行為**
+- 平台本身（Backend、Web UI、LiteLLM、Postgres）：compose `restart: unless-stopped`，開機即起。
+- vLLM container **不使用** Docker restart policy（避免同時啟動搶記憶體、避免狀態與平台不同步）。
+- Backend 啟動後執行 **Autostart Manager**：
+  1. 先對帳：把 DB 中「上次是 RUNNING 但 container 已不存在」的服務標為 `STOPPED`（事件：「主機重新啟動」）。
+  2. 取出 `autostart = true` 的服務，依 `autostart_order`、再依建立時間排序。
+  3. **一次只啟動一個**：等它 `READY`（或 `ERROR` / 逾時）才啟動下一個。
+  4. 每個啟動前做記憶體預檢；預檢為 `blocking` 時跳過並記錄事件，不中斷後續項目。
+  5. 某個失敗不影響其他；失敗的服務照一般 `ERROR` 呈現。
+- 手動「停止」不會改變 `autostart` 設定（下次開機仍會自動啟動）。
+- 使用者可在總覽按「取消剩餘的自動啟動」。
+
+**UI**
+- Step 3（基本設定）底部：
+  ```
+  ☐ Spark 開機時自動啟動此模型服務
+     重新開機後會依序自動啟動，不需要人工操作。
+  ```
+- 清單與詳細頁：已勾選者在名稱旁顯示小圖示「⟳ 自動啟動」。
+- 詳細頁設定分頁可切換；進階設定可調整「啟動順序」。
+- 總覽：自動啟動進行中顯示進度條與目前項目；完成後若有失敗，健康摘要顯示「開機自動啟動：1 個失敗」。
+- 事件時間軸：「主機重新啟動」「自動啟動排隊中」「自動啟動：已就緒 / 失敗（原因）」。
+- Step 4 警告：所有 `autostart` 服務的記憶體使用比例加總超過門檻時，顯示 `warning`「開機時可能無法全部啟動」。
+
+**i18n keys**：`instances.autostart.label`、`instances.autostart.help`、`dashboard.autostart.progress`、`dashboard.autostart.failed`、`events.host_restarted`、`events.autostart_*`。
+
+### 9.2 外部服務（非平台管理）
+
+定義：不帶 `dgxsp.*` label 的 container 或主機 process，但使用 GPU 或佔用平台需要的 port。
+來源：Docker container 清單（image 名含 `vllm` 等規則）、`nvidia-smi --query-compute-apps` 的 process 與記憶體、平台需要的 port（Gateway、Web）占用檢查。
+
+**原則**：平台**不會停止、修改或刪除**外部服務；只偵測、顯示、納入記憶體計算。
+
+**UI**
+- 總覽提示卡（黃色）：
+  ```
+  ⚠ 偵測到 1 個非本平台管理的模型服務，約使用 36 GB 記憶體。
+     它不會出現在「模型服務」中，也無法從這裡停止。     [查看詳細]
+  ```
+  [查看詳細] 開啟 Drawer：名稱、image、port、記憶體、啟動時間，以及「如需停止，請由原本啟動它的方式處理」的說明。
+- Step 4 記憶體預估：外部服務用量列為一個區塊「其他程式 ≈ 36 GB」，並據此給警告。
+- Port 衝突：Gateway port 被外部占用時，總覽健康摘要顯示「Gateway port 4000 被其他程式占用」（錯誤碼 `GATEWAY_PORT_IN_USE`）。
+
+**錯誤碼新增**：`GATEWAY_PORT_IN_USE`、`AUTOSTART_SKIPPED_MEMORY`。
+
+---
+
+## 10. MVP 範圍外（預留，不實作）
 
 - 下載模型（Hugging Face repo ID）
 - 多使用者、RBAC、SSO

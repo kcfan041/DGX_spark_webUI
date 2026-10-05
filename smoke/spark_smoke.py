@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import sys
 import threading
 import time
@@ -22,6 +23,7 @@ PROBE_NAME = "dgxsp-smoke-probe"
 ERRPROBE_NAME = "dgxsp-smoke-errprobe"
 NETWORK = "dgxsp-smoke"
 HOST_MODELS = Path("/host-models")
+ERROR_HINT = re.compile(r"(ERROR|Error:|Exception|out of memory|OutOfMemory|No available memory|insufficient|CUDA error)")
 
 
 class StepFailed(Exception):
@@ -438,13 +440,16 @@ class Smoke:
         try:
             res = c.wait(timeout=600)
             state = (self.client.api.inspect_container(c.id) or {}).get("State", {})
+            full = tail_logs(c, 2000)
             return {
                 "expected": "startup failure with tiny gpu_memory_utilization",
                 "exited": True,
                 "seconds_to_exit": round(time.monotonic() - t0, 1),
                 "exit_code": res.get("StatusCode"),
                 "oom_killed": state.get("OOMKilled"),
-                "log_tail": tail_logs(c, 40),
+                "log_lines": len(full),
+                "error_lines": [ln for ln in full if ERROR_HINT.search(ln)][-40:],
+                "log_tail": full[-40:],
             }
         except Exception as e:
             return {"exited": False, "note": f"did not exit within timeout: {e}", "log_tail": tail_logs(c, 40)}
@@ -493,7 +498,8 @@ class Smoke:
             self.cleanup()
             self.results["finished_at"] = now_iso()
             self.results["overall"] = "FAIL" if self.failed else "PASS"
-            out = Path(self.args.results_dir) / f"smoke-{self.args.profile}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+            stamp = self.env.get("SMOKE_STAMP") or datetime.now().strftime("%Y%m%d-%H%M%S")
+            out = Path(self.args.results_dir) / f"smoke-{self.args.profile}-{stamp}.json"
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(json.dumps(self.results, indent=2, ensure_ascii=False, default=str))
             print(f"\nOVERALL: {self.results['overall']}\nresults: {out}", flush=True)

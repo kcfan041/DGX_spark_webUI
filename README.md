@@ -22,5 +22,5 @@ scripts/       preflight、模型下載
 
 - [x] 規劃與 UI 規格
 - [x] P0a：smoke 工具
-- [ ] Spark smoke test
+- [x] Spark smoke test（2026-10-05，16/16 PASS）
 - [ ] P0b：Backend / Frontend 骨架
