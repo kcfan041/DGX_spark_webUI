@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { NavLink as RouterLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSystemSummary } from "@/api/hooks";
 import { useAuth } from "@/auth/AuthContext";
+import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
 import { useStatusToasts } from "@/hooks/useStatusToasts";
 
 const NAV = [
@@ -55,6 +56,7 @@ export function AppLayout() {
                 </Group>
               </Button>
             )}
+            <ColorSchemeToggle />
             <Button variant="default" size="compact-sm" onClick={logout}>
               {t("app.logout")}
             </Button>

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import { ColorSchemeToggle } from "@/components/ColorSchemeToggle";
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -32,7 +33,10 @@ export function LoginPage() {
   };
 
   return (
-    <Center h="100vh" bg="gray.0">
+    <Center h="100vh" bg="var(--mantine-color-default-hover)" pos="relative">
+      <div style={{ position: "absolute", top: 16, right: 16 }}>
+        <ColorSchemeToggle />
+      </div>
       <Paper withBorder shadow="sm" p="xl" w={380}>
         <form onSubmit={submit}>
           <Stack>

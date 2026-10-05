@@ -1,4 +1,14 @@
-import { Card, Code, SegmentedControl, Stack, Table, Text, Title } from "@mantine/core";
+import {
+  Card,
+  Code,
+  SegmentedControl,
+  Stack,
+  Table,
+  Text,
+  Title,
+  useMantineColorScheme,
+  type MantineColorScheme,
+} from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { useModelSources, useSystemInfo } from "@/api/hooks";
 import { QueryState } from "@/components/QueryState";
@@ -8,6 +18,7 @@ export function SettingsPage() {
   const { t, i18n } = useTranslation();
   const info = useSystemInfo();
   const sources = useModelSources();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
 
   return (
     <Stack>
@@ -27,6 +38,19 @@ export function SettingsPage() {
             { value: "zh-TW", label: "繁體中文" },
             { value: "en", label: "English" },
           ]}
+        />
+        <Text size="sm" mb={4} mt="md">
+          {t("theme.label")}
+        </Text>
+        <SegmentedControl
+          value={colorScheme}
+          onChange={(v) => setColorScheme(v as MantineColorScheme)}
+          data={[
+            { value: "light", label: t("theme.light") },
+            { value: "dark", label: t("theme.dark") },
+            { value: "auto", label: t("theme.auto") },
+          ]}
+          data-testid="theme-setting"
         />
       </Card>
 
