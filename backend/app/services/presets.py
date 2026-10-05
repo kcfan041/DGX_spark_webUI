@@ -1,3 +1,5 @@
+import math
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -66,15 +68,63 @@ def _resolve_rule(
     return fallback, Explanation(field=field, key="presets.explain.fixed", params={"value": fallback})
 
 
+FIT_OVERHEAD_BYTES = 3 * 2**30
+
+
+def model_need_bytes(model: ModelMeta, max_model_len: int) -> int | None:
+    """Rough bytes one instance needs: weights + KV cache for one full-length sequence + runtime overhead."""
+    if model.size_bytes is None or model.kv_bytes_per_token is None:
+        return None
+    return model.size_bytes + model.kv_bytes_per_token * max_model_len + FIT_OVERHEAD_BYTES
+
+
+def _resolve_fit(
+    field: str,
+    rule: dict[str, Any],
+    profile: RuntimeProfile,
+    model: ModelMeta,
+    values: dict[str, Any],
+    total_bytes: int | None,
+) -> tuple[Any, Explanation]:
+    mem = profile.memory
+    headroom = float(rule.get("headroom", 1.5))
+    ctx = int(values.get("max_model_len") or model.max_context or 4096)
+    need = model_need_bytes(model, ctx)
+    if need is None or not total_bytes:
+        fallback = _lookup(rule["fallback"], profile, model) if isinstance(rule.get("fallback"), str) else None
+        val = float(fallback if fallback is not None else mem.default)
+        return val, Explanation(field=field, key="presets.explain.fit_unknown", params={"value": val})
+    raw = need * headroom / total_bytes
+    val = min(max(math.ceil(raw * 20) / 20, mem.min), mem.max)
+    return round(val, 2), Explanation(
+        field=field,
+        key="presets.explain.fit",
+        params={
+            "value": round(val, 2),
+            "need_gb": round(need / 2**30, 1),
+            "headroom": headroom,
+            "reserve_gb": round(val * total_bytes / 2**30, 1),
+        },
+    )
+
+
 class PresetResolver:
-    def __init__(self, presets: dict[str, dict[str, Any]], profile: RuntimeProfile) -> None:
+    def __init__(
+        self,
+        presets: dict[str, dict[str, Any]],
+        profile: RuntimeProfile,
+        total_memory: Callable[[], int | None] = lambda: None,
+    ) -> None:
         self.presets = presets
         self.profile = profile
+        self.total_memory = total_memory
 
     @classmethod
-    def from_file(cls, path: Path, profile: RuntimeProfile) -> "PresetResolver":
+    def from_file(
+        cls, path: Path, profile: RuntimeProfile, total_memory: Callable[[], int | None] = lambda: None
+    ) -> "PresetResolver":
         data = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else {}
-        return cls(data or {}, profile)
+        return cls(data or {}, profile, total_memory)
 
     def ids(self) -> list[str]:
         return list(self.presets)
@@ -90,12 +140,21 @@ class PresetResolver:
         p = self.presets[preset_id]
         values: dict[str, Any] = {}
         explanations: list[Explanation] = []
-        for field, rule in self._rules(preset_id).items():
+        rules = self._rules(preset_id)
+        for field, rule in rules.items():
+            if "fit" in rule:
+                continue
             val, exp = _resolve_rule(field, rule, self.profile, model)
             values[field] = val
             explanations.append(exp)
         if values.get("max_model_len") is not None:
             values["max_model_len"] = max(int(values["max_model_len"]), MIN_CONTEXT)
+        total = self.total_memory()
+        for field, rule in rules.items():
+            if "fit" in rule:
+                val, exp = _resolve_fit(field, rule["fit"], self.profile, model, values, total)
+                values[field] = val
+                explanations.append(exp)
         values.setdefault("gpu_memory_utilization", self.profile.memory.default)
         values.setdefault("max_model_len", model.max_context or 4096)
         quant = values.get("quantization")

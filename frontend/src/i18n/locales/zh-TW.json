@@ -82,7 +82,8 @@
   "health": {
     "ok": "系統運作正常",
     "attention": "有模型服務需要處理",
-    "gateway_unreachable": "Gateway 無法連線",
+    "gateway_unreachable": "Gateway 沒有在執行（可能正在重啟）",
+    "gateway_db": "Gateway 無法連線到資料庫",
     "runtime_error": "執行環境異常（無法連線容器執行環境）"
   },
   "dashboard": {
@@ -95,6 +96,8 @@
     "gateway": "Gateway",
     "gatewayOk": "正常",
     "gatewayDown": "無法連線",
+    "gatewayState": { "ok": "正常", "down": "沒有在執行", "db": "資料庫未連線" },
+    "gatewayDoctor": "管理員可在 Spark 上執行 scripts/doctor.sh 診斷",
     "gpuUtil": "GPU 使用率 {{pct}}%",
     "runningServices": "運行中的模型服務",
     "noRunning": "還沒有運行中的模型服務",
@@ -236,7 +239,9 @@
       "preset_limit": "此用途上限為 {{value}}（模型支援 {{model_max}}）",
       "unknown_fallback": "模型資訊不足，使用保守值 {{value}}",
       "from_source": "依這台主機的設定取 {{value}}",
-      "capped": "取模型上限，但最多 {{value}}"
+      "capped": "取模型上限，但最多 {{value}}",
+      "fit": "這個模型約需 {{need_gb}} GB，乘上餘裕 {{headroom}} 倍，預先保留約 {{reserve_gb}} GB",
+      "fit_unknown": "模型大小或主機記憶體未知，使用保守值 {{value}}"
     },
     "context": "最長對話 {{value}}",
     "memory": "記憶體 {{value}}%"
@@ -253,7 +258,7 @@
     },
     "gpu_memory_utilization": {
       "label": "記憶體使用比例",
-      "help": "這個模型服務最多可以使用整台機器多少比例的記憶體（GPU 與系統共用）。"
+      "help": "啟動時會「預先保留」整台機器這個比例的記憶體（GPU 與系統共用），多出來的用來同時處理更多對話。比例越高，留給其他模型服務的空間越少。"
     },
     "quantization": { "label": "量化方式", "help": "大多數情況選「自動」即可，平台會依模型檔判斷。" },
     "dtype": { "label": "資料型別（dtype）", "help": "模型計算時使用的數值精度。一般選 auto。" },
@@ -289,7 +294,9 @@
     "TOTAL_UTIL_HIGH": "其他運行中的服務已使用 {{others}}，合計 {{combined}}，可能導致啟動失敗",
     "AVAILABLE_LOW": "此服務配額大於目前系統可用記憶體，可能啟動失敗",
     "PAGE_CACHE_HIGH": "目前有大量系統快取，立即可用的記憶體較少；若啟動失敗可稍後重試",
-    "AUTOSTART_TOTAL_HIGH": "所有開機自動啟動的服務合計使用 {{combined}}，開機時可能無法全部啟動"
+    "AUTOSTART_TOTAL_HIGH": "所有開機自動啟動的服務合計使用 {{combined}}，開機時可能無法全部啟動",
+    "RESERVES_UP_FRONT": "啟動後會立即預先保留約 {{budget}}（{{ratio}}）記憶體，不論實際用量",
+    "RESERVE_MUCH_LARGER": "預先保留的 {{budget}} 遠大於這個模型約需的 {{estimate}}；若想同時運行其他模型，可降低記憶體使用比例"
   },
   "estimate": {
     "title": "預估記憶體",
@@ -478,6 +485,14 @@
         "view_running": "查看其他運行中的服務"
       }
     },
+    "GPU_MEMORY_IN_USE": {
+      "title": "模型啟動失敗：記憶體已被其他程式佔用",
+      "description": "啟動時只剩約 {{free_gib}} GB 可用，但這個設定要預先保留 {{requested_gib}} GB。通常是其他模型服務正在使用記憶體。",
+      "suggest": {
+        "stop_others": "查看並停止其他運行中的服務",
+        "lower_ratio": "把記憶體使用比例降到 {{value}}% 並重試"
+      }
+    },
     "MEMORY_PRECHECK": { "title": "預估記憶體可能不足", "description": "啟動前檢查發現記憶體可能不夠。" },
     "MODEL_NOT_FOUND": {
       "title": "找不到模型檔案",
@@ -501,7 +516,10 @@
     "GPU_UNAVAILABLE": { "title": "無法使用 GPU", "description": "容器無法取得 GPU，請檢查主機。" },
     "DOCKER_UNAVAILABLE": { "title": "無法連線容器執行環境", "description": "請檢查主機的 Docker 服務。" },
     "CONTAINER_MISSING": { "title": "模型服務已被外部移除", "description": "服務的容器被平台以外的方式刪除了。" },
-    "GATEWAY_UNREACHABLE": { "title": "無法連線到 Gateway", "description": "模型已就緒，但無法發布到 Gateway。" },
+    "GATEWAY_UNREACHABLE": {
+      "title": "無法連線到 Gateway",
+      "description": "模型已就緒，但 Gateway 目前沒有在執行（可能正在重啟或無法連線資料庫）。Gateway 恢復後平台會自動重新發布；管理員可在 Spark 上執行 scripts/doctor.sh 診斷。"
+    },
     "GATEWAY_REGISTER_FAILED": { "title": "無法發布到 Gateway", "description": "Gateway 拒絕了註冊要求。" },
     "GATEWAY_MODEL_NOT_FOUND": { "title": "Gateway 找不到此模型", "description": "請重試發布。" },
     "GATEWAY_PORT_IN_USE": { "title": "Gateway port 被其他程式占用", "description": "請停止占用 port 的程式。" },

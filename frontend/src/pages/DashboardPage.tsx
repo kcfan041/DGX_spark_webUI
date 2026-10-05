@@ -101,9 +101,22 @@ export function DashboardPage() {
 
             <Card withBorder>
               <Text fw={600}>{t("dashboard.gateway")}</Text>
-              <Badge color={s.gateway.reachable ? "green" : "red"} variant="light" mt="xs">
-                {t(s.gateway.reachable ? "dashboard.gatewayOk" : "dashboard.gatewayDown")}
-              </Badge>
+              {(() => {
+                const state = !s.gateway.reachable ? "down" : s.gateway.db_connected ? "ok" : "db";
+                const color = state === "ok" ? "green" : "red";
+                return (
+                  <>
+                    <Badge color={color} variant="light" mt="xs" data-testid="gateway-state">
+                      {t(`dashboard.gatewayState.${state}`)}
+                    </Badge>
+                    {state !== "ok" && (
+                      <Text size="xs" c="dimmed" mt={4}>
+                        {t("dashboard.gatewayDoctor")}
+                      </Text>
+                    )}
+                  </>
+                );
+              })()}
             </Card>
           </SimpleGrid>
 

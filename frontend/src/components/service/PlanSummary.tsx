@@ -10,7 +10,7 @@ const ORDER: WarningLevel[] = ["blocking", "warning", "info"];
 
 function fmtParam(v: unknown): string {
   if (typeof v === "number") {
-    if (v > 10_000_000) return formatBytes(v);
+    if (v > 10_000_000) return formatBytes(v, 0);
     if (v > 0 && v < 1) return `${Math.round(v * 100)}%`;
     return String(v);
   }

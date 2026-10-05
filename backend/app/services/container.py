@@ -46,7 +46,12 @@ def build_services(settings: Settings, engine: Engine) -> Services:
     litellm = LiteLLMClient(settings.litellm_url, settings.litellm_master_key.get_secret_value())
     catalog = ModelCatalog(sources)
     metrics = MetricsProvider(profile.monitoring.gpu_source, Path("/proc/meminfo"), settings.model_root)
-    presets = PresetResolver.from_file(settings.config_dir / "presets.yaml", profile)
+
+    def total_memory() -> int | None:
+        m = metrics.memory()
+        return m.total_bytes if m else None
+
+    presets = PresetResolver.from_file(settings.config_dir / "presets.yaml", profile, total_memory)
     planner = Planner(profile, presets)
     classifier = ErrorClassifier.from_file(settings.config_dir / "error-patterns.yaml")
     probe = VllmProbe()

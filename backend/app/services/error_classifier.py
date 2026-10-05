@@ -1,3 +1,4 @@
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -26,6 +27,16 @@ SUGGESTIONS: dict[ErrorCode, list[Suggestion]] = {
         Suggestion(action="apply_preset", label_key="errors.OOM.suggest.low_memory", preset="low_memory"),
         Suggestion(action="navigate", label_key="errors.OOM.suggest.view_running", target="/services?status=ready"),
     ],
+    ErrorCode.GPU_MEMORY_IN_USE: [
+        Suggestion(
+            action="navigate", label_key="errors.GPU_MEMORY_IN_USE.suggest.stop_others", target="/services?status=ready"
+        ),
+        Suggestion(
+            action="edit",
+            label_key="errors.GPU_MEMORY_IN_USE.suggest.lower_ratio",
+            patch={"gpu_memory_utilization": None},
+        ),
+    ],
     ErrorCode.REMOTE_CODE_REQUIRED: [
         Suggestion(
             action="edit", label_key="errors.REMOTE_CODE_REQUIRED.suggest.enable", patch={"trust_remote_code": True}
@@ -44,11 +55,34 @@ SUGGESTIONS: dict[ErrorCode, list[Suggestion]] = {
 }
 
 
+MIN_RATIO = 0.05
+
+
+def _ratio_target(err: InstanceError, current: float) -> float | None:
+    try:
+        free = float(err.params["free_gib"])
+        total = float(err.params["total_gib"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if total <= 0:
+        return None
+    target = math.floor((free / total - 0.02) * 100) / 100
+    if target < MIN_RATIO or target >= current:
+        return None
+    return round(target, 2)
+
+
 def tailor_suggestions(err: InstanceError, current: dict[str, Any], model_max_context: int | None) -> InstanceError:
     """Make generic suggestions concrete for this instance; drop ones that would not change anything."""
     out: list[Suggestion] = []
     for s in err.suggestions:
         patch = dict(s.patch or {})
+        if "gpu_memory_utilization" in patch:
+            target = _ratio_target(err, float(current.get("gpu_memory_utilization") or 0))
+            if target is None:
+                continue
+            patch["gpu_memory_utilization"] = target
+            s = s.model_copy(update={"patch": patch, "params": {**s.params, "value": round(target * 100)}})
         if "max_model_len" in patch:
             cur = int(current.get("max_model_len") or 0)
             limits = [int(patch["max_model_len"]), cur // 2 if cur else int(patch["max_model_len"])]
@@ -108,7 +142,13 @@ class ErrorClassifier:
             if p.log:
                 hits = [ln for ln in logs if any(rx.search(ln) for rx in p.log)]
                 if hits:
-                    return make_error(p.code, evidence=hits[-5:], params={"exit_code": exit_code})
+                    params: dict[str, Any] = {"exit_code": exit_code}
+                    for ln in hits:
+                        for rx in p.log:
+                            m = rx.search(ln)
+                            if m:
+                                params.update({k: v for k, v in m.groupdict().items() if v is not None})
+                    return make_error(p.code, evidence=hits[-5:], params=params)
         return make_error(default, evidence=self._tail_errors(logs), params={"exit_code": exit_code})
 
     def annotate(self, line: str) -> str | None:

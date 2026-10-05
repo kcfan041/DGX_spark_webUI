@@ -40,7 +40,13 @@ async def gateway_status(svc: Svc) -> dict[str, Any]:
         db_ok = str(r.get("db", "")).lower() == "connected"
         return {"reachable": True, "db_connected": db_ok, "version": r.get("litellm_version")}
     except GatewayError as e:
-        return {"reachable": False, "db_connected": False, "error": str(e)[:200]}
+        down = e.status_code is None
+        return {
+            "reachable": not down,
+            "db_connected": False,
+            "error": str(e)[:200],
+            "reason": "not_running" if down else "not_ready",
+        }
 
 
 @router.get("/info")
@@ -77,6 +83,8 @@ async def summary(svc: Svc, db: DbSession, _: CurrentPrincipal) -> SystemSummary
         health = "runtime_error"
     elif not gw["reachable"]:
         health = "gateway_unreachable"
+    elif not gw["db_connected"]:
+        health = "gateway_db"
     elif counts[InstanceStatus.ERROR.value] > 0:
         health = "attention"
     else:

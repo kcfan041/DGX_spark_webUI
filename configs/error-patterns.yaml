@@ -3,8 +3,17 @@
 #   oom_killed: true            container State.OOMKilled
 #   exit_code: [137]            container exit code
 #   log: [regex, ...]           any line in the full container log (case-insensitive)
+# Named groups (?P<name>...) in a log regex are copied into the error params.
 # Add new patterns here when Spark shows new failure shapes; no code change needed.
 
+# Startup check: other processes already hold the memory (seen on Spark 2026-10-05, vLLM 0.30.1rc1):
+#   ValueError: Free memory on device cuda:0 (9.2/121.69 GiB) on startup is less than desired
+#   GPU memory utilization (0.1, 12.17 GiB).
+- code: GPU_MEMORY_IN_USE
+  match:
+    log:
+      - "Free memory on device \\S+ \\((?P<free_gib>[\\d.]+)/(?P<total_gib>[\\d.]+) GiB\\) on startup is less than desired GPU memory utilization \\((?P<requested_ratio>[\\d.]+), (?P<requested_gib>[\\d.]+) GiB\\)"
+      - "Free memory on device .* is less than desired GPU memory utilization"
 - code: OOM
   match: { oom_killed: true }
 - code: OOM
@@ -14,7 +23,6 @@
       - "OutOfMemoryError"
       - "No available memory for the cache blocks"
       - "insufficient memory"
-      - "Free memory on device .* is less than desired GPU memory utilization"
       - "Cannot allocate memory"
 - code: OOM
   match: { exit_code: [137] }

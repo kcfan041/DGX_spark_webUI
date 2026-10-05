@@ -1,6 +1,6 @@
 export type InstanceStatus = "CREATED" | "STARTING" | "LOADING" | "READY" | "STOPPING" | "STOPPED" | "ERROR";
 export type GatewayState = "none" | "pending" | "registered" | "failed";
-export type Health = "ok" | "attention" | "gateway_unreachable" | "runtime_error";
+export type Health = "ok" | "attention" | "gateway_unreachable" | "gateway_db" | "runtime_error";
 
 export interface Me {
   subject: string;

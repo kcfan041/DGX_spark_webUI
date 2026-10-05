@@ -21,7 +21,7 @@ export function ErrorCard({ error, onSuggestion, onViewLogs }: Props) {
       data-testid="error-card"
     >
       <Stack gap="sm">
-        <Text size="sm">{t(`errors.${error.code}.description`, { defaultValue: "" })}</Text>
+        <Text size="sm">{t(`errors.${error.code}.description`, { defaultValue: "", ...error.params })}</Text>
         {error.suggestions.length > 0 && (
           <Stack gap={4}>
             <Text size="sm" fw={500}>

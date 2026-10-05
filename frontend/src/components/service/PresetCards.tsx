@@ -62,7 +62,11 @@ export function PresetCards({ presets, value, onChange }: Props) {
                           <List.Item key={e.field}>
                             <b>{t(`params.${e.field}.label`, { defaultValue: e.field })}</b>：
                             {t(e.key, {
-                              value: fmt(e.params.value),
+                              ...e.params,
+                              value:
+                                e.field === "gpu_memory_utilization" && typeof e.params.value === "number"
+                                  ? `${Math.round(e.params.value * 100)}%`
+                                  : fmt(e.params.value),
                               model_max: fmt(e.params.model_max),
                             })}
                           </List.Item>

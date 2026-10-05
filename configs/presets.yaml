@@ -1,14 +1,21 @@
 # Preset rules resolved against RuntimeProfile (profile.*) and model metadata (model.*).
-# Supported rule keys: value, from, min (list), cap, fallback.
-# Values are first estimates; calibrate with Spark measurements (docs/spark-validation.md).
+# Supported rule keys: value, from, min (list), cap, fallback, fit.
+#
+# fit (memory ratio sized to the model):
+#   ratio = (weights + kv_bytes_per_token * max_model_len + 3 GiB) * headroom / total_memory
+#   rounded up to 5 %, clamped to profile.memory.min .. profile.memory.max.
+#   vLLM reserves the whole ratio up front and fills the rest with KV cache, so a larger
+#   headroom = more concurrent / longer requests, but less room for other services.
+#   Measured on Spark 2026-10-05: 7B @ 0.70 reserved 82 GB; 0.5B @ 0.15 reserved 18 GB.
+# fallback is used when model size or total memory is unknown.
 
 balanced:
   label_key: presets.balanced.label
   description_key: presets.balanced.description
   recommended: true
   rules:
-    gpu_memory_utilization: { from: profile.memory.default }
     max_model_len: { min: [model.max_context, 32768], fallback: 8192 }
+    gpu_memory_utilization: { fit: { headroom: 1.5, fallback: profile.memory.default } }
     dtype: { value: auto }
     quantization: { from: model.quantization, fallback: auto }
 
@@ -16,8 +23,8 @@ low_memory:
   label_key: presets.low_memory.label
   description_key: presets.low_memory.description
   rules:
-    gpu_memory_utilization: { from: profile.memory.low }
     max_model_len: { min: [model.max_context, 8192], fallback: 4096 }
+    gpu_memory_utilization: { fit: { headroom: 1.2, fallback: profile.memory.low } }
     dtype: { value: auto }
     quantization: { from: model.quantization, fallback: auto }
 
@@ -25,8 +32,8 @@ long_context:
   label_key: presets.long_context.label
   description_key: presets.long_context.description
   rules:
-    gpu_memory_utilization: { from: profile.memory.high }
     max_model_len: { from: model.max_context, cap: 131072, fallback: 32768 }
+    gpu_memory_utilization: { fit: { headroom: 1.5, fallback: profile.memory.high } }
     dtype: { value: auto }
     quantization: { from: model.quantization, fallback: auto }
 
@@ -34,8 +41,8 @@ high_throughput:
   label_key: presets.high_throughput.label
   description_key: presets.high_throughput.description
   rules:
-    gpu_memory_utilization: { from: profile.memory.high }
     max_model_len: { min: [model.max_context, 16384], fallback: 8192 }
+    gpu_memory_utilization: { fit: { headroom: 3.0, fallback: profile.memory.high } }
     dtype: { value: auto }
     quantization: { from: model.quantization, fallback: auto }
 

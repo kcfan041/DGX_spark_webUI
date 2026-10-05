@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class ErrorCode(StrEnum):
     OOM = "OOM"
+    GPU_MEMORY_IN_USE = "GPU_MEMORY_IN_USE"
     MEMORY_PRECHECK = "MEMORY_PRECHECK"
     MODEL_NOT_FOUND = "MODEL_NOT_FOUND"
     MODEL_UNSUPPORTED = "MODEL_UNSUPPORTED"

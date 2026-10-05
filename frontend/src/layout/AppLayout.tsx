@@ -25,7 +25,13 @@ const NAV = [
   { to: "/settings", key: "nav.settings", icon: IconSettings },
 ] as const;
 
-const HEALTH_COLOR = { ok: "green", attention: "yellow", gateway_unreachable: "red", runtime_error: "red" } as const;
+const HEALTH_COLOR = {
+  ok: "green",
+  attention: "yellow",
+  gateway_unreachable: "red",
+  gateway_db: "red",
+  runtime_error: "red",
+} as const;
 
 export function AppLayout() {
   const { t } = useTranslation();

@@ -46,7 +46,52 @@ api() {
     curl "${args[@]}" "$BASE$path"
   fi
 }
-jq_() { "$PY" -c "import json,sys;d=json.load(sys.stdin);print($1)"; }
+jq_() {
+  "$PY" -c "
+import json,sys
+raw=sys.stdin.read()
+try:
+    d=json.loads(raw)
+except ValueError:
+    print('<non-json: ' + raw[:200].replace(chr(10),' ') + '>'); sys.exit()
+class G(dict):
+    def __missing__(self, k): return None
+if isinstance(d, dict): d=G(d)
+try:
+    print($1)
+except Exception as e:
+    print('<api error: ' + json.dumps(d, ensure_ascii=False)[:300] + '>')"
+}
+ok_test() { [[ "$(echo "$1" | jq_ "d['ok']")" == "True" ]]; }
+
+preflight() {
+  section "preflight"
+  local r
+  r="$(curl -s -m 5 "${GATEWAY_URL%/v1}/health/readiness" || true)"
+  if [[ "$r" != *'"db":"connected"'* ]]; then
+    echo "  [STOP] Gateway (LiteLLM) not ready or its database is not connected: ${r:-no response}"
+    echo "         run: scripts/doctor.sh"
+    exit 3
+  fi
+  if ! curl -sf -o /dev/null -H "Authorization: Bearer $TOKEN" "$BASE/auth/me"; then
+    echo "  [STOP] platform API not reachable at $BASE"
+    exit 3
+  fi
+  pass "gateway ready (db connected) and platform API reachable"
+}
+
+cleanup_all() {
+  for n in v2-7b v2-small v2-oom v2-auto-small v2-auto-7b; do remove "$n"; done
+}
+
+on_exit() {
+  local rc=$?
+  if [[ "$PHASE" != "reboot-prep" && "$PHASE" != "reboot-verify" && "$PHASE" != "cleanup" && "$PHASE" != "all" ]]; then
+    echo; echo "  (cleanup: removing v2-* services)"
+    cleanup_all
+  fi
+  exit "$rc"
+}
 
 mem() {
   awk '/^(MemTotal|MemFree|MemAvailable|Cached):/ {printf "%s %.1fGB  ", $1, $2/1048576}' /proc/meminfo
@@ -103,10 +148,14 @@ print('    command:', ' '.join(p['command']))"
 }
 
 throughput() { # served_name
-  local key t0 t1 resp
-  key="$(api POST /gateway/keys '{"name":"v2-check throughput"}' | jq_ "d['key']")"
-  local kid
-  kid="$(api GET /gateway/keys | "$PY" -c "import json,sys;print(next(k['id'] for k in json.load(sys.stdin) if k['name']=='v2-check throughput' and k['status']=='active'))")"
+  local created key kid t0 t1 resp
+  created="$(api POST /gateway/keys '{"name":"v2-check throughput"}')"
+  key="$(echo "$created" | jq_ "d['key']")"
+  kid="$(echo "$created" | jq_ "d['id']")"
+  if [[ "$key" != sk-* ]]; then
+    fail "could not create API key: ${created:0:300}"
+    return
+  fi
   t0=$(date +%s.%N)
   resp="$(printf '%s' "{\"model\":\"$1\",\"max_tokens\":256,\"messages\":[{\"role\":\"user\",\"content\":\"Write about 200 words introducing Taiwan.\"}]}" | curl -sS "$GATEWAY_URL/chat/completions" -H "Authorization: Bearer $key" -H 'Content-Type: application/json' --data-binary @-)"
   t1=$(date +%s.%N)
@@ -143,7 +192,7 @@ phase_big() {
   local t
   t="$(api POST "/instances/$id/test" '{"content":"Introduce yourself in one sentence."}')"
   echo "    test: $t"
-  [[ "$(echo "$t" | jq_ "d['ok']")" == "True" ]] && pass "test via LiteLLM" || fail "test via LiteLLM"
+  ok_test "$t" && pass "test via LiteLLM" || fail "test via LiteLLM"
   throughput v2-7b
   echo "  vLLM memory lines from log:"
   api GET "/instances/$id/logs?tail=2000" | "$PY" -c "
@@ -169,7 +218,7 @@ phase_concurrent() {
   for n in v2-7b v2-small; do
     local r
     r="$(api POST "/instances/$(id_of $n)/test" '{"content":"hi"}')"
-    [[ "$(echo "$r" | jq_ "d['ok']")" == "True" ]] && pass "$n answers" || fail "$n test: $r"
+    ok_test "$r" && pass "$n answers" || fail "$n test: $r"
   done
   api GET /gateway/models | jq_ "'\n'.join(f\"    gateway: {m['model_name']} sync={m['sync']}\" for m in d)"
   remove v2-small
@@ -255,7 +304,7 @@ phase_reboot_verify() {
     api GET "/instances/$id/events" | jq_ "'    $n events: ' + ' > '.join(e['type'] for e in reversed(d))"
     local r
     r="$(api POST "/instances/$id/test" '{"content":"hi"}' || true)"
-    [[ "$(echo "$r" | jq_ "d.get('ok')")" == "True" ]] && pass "$n READY and answering after reboot" || fail "$n after reboot: $r"
+    ok_test "$r" && pass "$n READY and answering after reboot" || fail "$n after reboot: $r"
   done
   api GET /instances | "$PY" -c "
 import json,sys
@@ -271,13 +320,18 @@ phase_cleanup() {
 }
 
 case "$PHASE" in
+  big|concurrent|oom|all|reboot-prep) preflight ;;
+esac
+trap on_exit EXIT
+
+case "$PHASE" in
   big) phase_big ;;
   concurrent) phase_concurrent ;;
   oom) phase_oom ;;
   reboot-prep) phase_reboot_prep ;;
   reboot-verify) phase_reboot_verify ;;
   cleanup) phase_cleanup ;;
-  all) phase_big; phase_concurrent; phase_oom; phase_reboot_prep ;;
+  all) phase_big; phase_concurrent; phase_oom; cleanup_all; phase_reboot_prep ;;
   *) echo "unknown phase: $PHASE"; exit 2 ;;
 esac
 

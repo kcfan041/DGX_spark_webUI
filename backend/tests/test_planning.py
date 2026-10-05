@@ -157,6 +157,87 @@ def test_plan_errors(model: ModelMeta) -> None:
     assert e.value.code == "PRESET_NOT_FOUND"
 
 
+SPARK_TOTAL = 130660978688  # 121.69 GiB, measured
+
+
+def spark_7b() -> ModelMeta:
+    return ModelMeta(
+        id="local:Qwen2.5-7B-Instruct",
+        source="local",
+        locator="Qwen2.5-7B-Instruct",
+        name="Qwen2.5-7B-Instruct",
+        size_bytes=int(14.2 * 2**30),
+        max_context=32768,
+        kv_bytes_per_token=2 * 28 * 4 * 128 * 2,
+        host_path="/data/models/Qwen2.5-7B-Instruct",
+        container_subpath="Qwen2.5-7B-Instruct",
+        mount_host_path="/data/models/Qwen2.5-7B-Instruct",
+    )
+
+
+def test_fit_presets_on_spark_numbers() -> None:
+    resolver = PresetResolver.from_file(REPO_ROOT / "configs" / "presets.yaml", PROFILE, lambda: SPARK_TOTAL)
+    by_id = {p.id: p for p in resolver.resolve_all(spark_7b())}
+    bal = by_id["balanced"]
+    assert bal.params.max_model_len == 32768
+    assert 0.2 <= bal.params.gpu_memory_utilization <= 0.3
+    fit = next(e for e in bal.explanations if e.field == "gpu_memory_utilization")
+    assert fit.key == "presets.explain.fit"
+    assert 18 <= fit.params["need_gb"] <= 20
+    assert by_id["low_memory"].params.gpu_memory_utilization < bal.params.gpu_memory_utilization
+    assert by_id["high_throughput"].params.gpu_memory_utilization > bal.params.gpu_memory_utilization
+    assert by_id["custom"].params == bal.params
+    for p in by_id.values():
+        assert PROFILE.memory.min <= p.params.gpu_memory_utilization <= PROFILE.memory.max
+
+
+def test_fit_small_model_hits_floor() -> None:
+    tiny = spark_7b().model_copy(update={"size_bytes": 2**30, "kv_bytes_per_token": 12288, "max_context": 32768})
+    resolver = PresetResolver.from_file(REPO_ROOT / "configs" / "presets.yaml", PROFILE, lambda: SPARK_TOTAL)
+    assert resolver.resolve("low_memory", tiny).params.gpu_memory_utilization == PROFILE.memory.min
+
+
+def test_fit_unknown_total_uses_fallback(model: ModelMeta) -> None:
+    resolver = PresetResolver.from_file(REPO_ROOT / "configs" / "presets.yaml", PROFILE, lambda: None)
+    p = resolver.resolve("balanced", model)
+    assert p.params.gpu_memory_utilization == PROFILE.memory.default
+    assert any(e.key == "presets.explain.fit_unknown" for e in p.explanations)
+
+
+def test_reserve_info_warnings(model: ModelMeta) -> None:
+    plan = Planner(PROFILE, PRESETS).plan(
+        PlanInput(model_id=model.id, params={"gpu_memory_utilization": 0.7}), model, [], MEM
+    )
+    assert {"RESERVES_UP_FRONT", "RESERVE_MUCH_LARGER"} <= codes(plan)
+
+
+SPARK_IN_USE_LOG = [
+    "(EngineCore pid=172) ERROR 10-05 17:17:09 [core.py:1436] ValueError: Free memory on device cuda:0 "
+    "(9.2/121.69 GiB) on startup is less than desired GPU memory utilization (0.1, 12.17 GiB). "
+    "Decrease GPU memory utilization or reduce GPU memory used by other processes.",
+    "RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}",
+]
+
+
+def test_gpu_memory_in_use_from_real_spark_log() -> None:
+    from app.services.error_classifier import tailor_suggestions
+
+    c = ErrorClassifier.from_file(REPO_ROOT / "configs" / "error-patterns.yaml")
+    err = c.classify(exit_code=1, oom_killed=False, logs=SPARK_IN_USE_LOG)
+    assert err.code == "GPU_MEMORY_IN_USE"
+    assert err.params["free_gib"] == "9.2"
+    assert err.params["total_gib"] == "121.69"
+    assert err.params["requested_gib"] == "12.17"
+
+    t = tailor_suggestions(err, {"gpu_memory_utilization": 0.1, "max_model_len": 8192}, 32768)
+    assert [s.action for s in t.suggestions] == ["navigate", "edit"]
+    assert t.suggestions[1].patch == {"gpu_memory_utilization": 0.05}
+    assert t.suggestions[1].params == {"value": 5}
+
+    none_fit = tailor_suggestions(err, {"gpu_memory_utilization": 0.05}, 32768)
+    assert [s.action for s in none_fit.suggestions] == ["navigate"]
+
+
 def test_tailor_suggestions() -> None:
     from app.domain.errors import ErrorCode
     from app.services.error_classifier import make_error, tailor_suggestions

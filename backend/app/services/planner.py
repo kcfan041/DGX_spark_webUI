@@ -16,9 +16,9 @@ from app.domain.params import (
     split_extra_args,
 )
 from app.profiles import RuntimeProfile
-from app.services.presets import PresetResolver
+from app.services.presets import FIT_OVERHEAD_BYTES, PresetResolver
 
-OVERHEAD_BYTES = 2 * 2**30
+OVERHEAD_BYTES = FIT_OVERHEAD_BYTES
 
 Level = Literal["info", "warning", "blocking"]
 
@@ -249,6 +249,27 @@ class Planner:
                     code="PAGE_CACHE_HIGH",
                     level="info",
                     params={"free": est.system_free_bytes, "available": est.system_available_bytes},
+                )
+            )
+        if est.budget_bytes:
+            w.append(
+                Warning_(
+                    code="RESERVES_UP_FRONT",
+                    level="info",
+                    params={"budget": est.budget_bytes, "ratio": params.gpu_memory_utilization},
+                )
+            )
+        if (
+            est.total_bytes
+            and est.budget_bytes
+            and est.budget_bytes > est.total_bytes * 4
+            and est.budget_bytes > 20 * 2**30
+        ):
+            w.append(
+                Warning_(
+                    code="RESERVE_MUCH_LARGER",
+                    level="info",
+                    params={"budget": est.budget_bytes, "estimate": est.total_bytes},
                 )
             )
         if autostart:

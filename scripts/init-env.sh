@@ -9,6 +9,22 @@ PROFILE="${1:-spark}"
 
 if [[ -f "$ENV_FILE" ]]; then echo "deploy/.env already exists"; exit 0; fi
 
+if docker volume inspect dgxsp-pgdata >/dev/null 2>&1; then
+  cat <<'EOF'
+deploy/.env is missing, but the Gateway database volume (dgxsp-pgdata) already exists.
+A new .env would contain a NEW random POSTGRES_PASSWORD that the existing database does not accept,
+and LiteLLM would fail with "P1000: Authentication failed".
+
+Options:
+  - restore your previous deploy/.env (recommended), or
+  - start fresh (deletes all API keys stored in the Gateway):
+      docker compose -f deploy/compose.yaml down
+      docker volume rm dgxsp-pgdata
+      scripts/init-env.sh
+EOF
+  exit 1
+fi
+
 rand() { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 WEB_PORT="$(grep '^WEB_PORT=' "$ROOT/deploy/.env.example" | cut -d= -f2)"
