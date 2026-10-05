@@ -40,6 +40,30 @@ wait_ready() {
   echo; echo "timeout"; return 1
 }
 
+COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$ROOT/deploy/compose.yaml")
+
+diagnose() {
+  echo "== diagnostics"
+  "${COMPOSE[@]}" ps -a || true
+  for svc in backend web litellm; do
+    echo "--- $svc logs (last 40)"
+    "${COMPOSE[@]}" logs --tail 40 "$svc" 2>&1 || true
+  done
+}
+
+echo "== wait for platform ($BASE)"
+t0=$SECONDS
+until curl -sf -o /dev/null "http://127.0.0.1:${PORT:-8088}/" && \
+      [[ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$BASE/auth/me")" == "200" ]]; do
+  if (( SECONDS - t0 > 180 )); then
+    echo "platform not reachable after 180s"
+    diagnose
+    exit 1
+  fi
+  sleep 3
+done
+echo "  ready after $((SECONDS - t0))s"
+
 echo "== system"
 api GET /system/summary | python3 -m json.tool | head -n 40
 echo "== models"
