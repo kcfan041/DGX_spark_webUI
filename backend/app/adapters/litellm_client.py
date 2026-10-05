@@ -68,6 +68,21 @@ class LiteLLMClient:
     async def delete_key(self, key_or_token: str) -> None:
         await self._request("POST", "/key/delete", json={"keys": [key_or_token]})
 
+    async def block_key(self, key_or_token: str) -> None:
+        await self._request("POST", "/key/block", json={"key": key_or_token})
+
+    async def list_keys(self, page_size: int = 100) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            data = await self._request(
+                "GET", "/key/list", params={"return_full_object": "true", "size": page_size, "page": page}
+            )
+            out += [k for k in (data or {}).get("keys", []) if isinstance(k, dict)]
+            if page >= int((data or {}).get("total_pages") or 1):
+                return out
+            page += 1
+
     async def chat(self, *, api_key: str, model: str, content: str, max_tokens: int = 32) -> dict[str, Any]:
         body = {"model": model, "messages": [{"role": "user", "content": content}], "max_tokens": max_tokens}
         resp: dict[str, Any] = await self._request(

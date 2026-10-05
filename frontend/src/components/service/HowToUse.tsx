@@ -1,4 +1,5 @@
-import { ActionIcon, Alert, Anchor, Button, Card, Code, CopyButton, Group, Stack, Tabs, Text, Textarea, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Anchor, Button, Card, Code, Group, Stack, Tabs, Text, Textarea, Tooltip } from "@mantine/core";
+import { CopyButton } from "@/components/CopyButton";
 import { IconCheck, IconCopy, IconPlayerPlay } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";

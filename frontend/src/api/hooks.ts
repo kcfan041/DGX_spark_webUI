@@ -1,7 +1,11 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
+  ApiKeyInfo,
   AutostartProgress,
+  CreatedApiKey,
+  GatewayModel,
+  GatewayStatus,
   Instance,
   InstanceEvent,
   InstanceParams,
@@ -166,6 +170,62 @@ export function useRescanModels() {
       void qc.invalidateQueries({ queryKey: ["models"] });
       void qc.invalidateQueries({ queryKey: ["model-sources"] });
     },
+  });
+}
+
+export const useGatewayStatus = () =>
+  useQuery({ queryKey: ["gateway", "status"], queryFn: () => api<GatewayStatus>("/gateway/status"), refetchInterval: POLL_MS * 2 });
+
+export const useConnectionInfo = () =>
+  useQuery({
+    queryKey: ["gateway", "connection"],
+    queryFn: () => api<{ api_base: string; models: string[] }>("/gateway/connection-info"),
+    refetchInterval: POLL_MS * 2,
+  });
+
+export const useGatewayModels = () =>
+  useQuery({ queryKey: ["gateway", "models"], queryFn: () => api<GatewayModel[]>("/gateway/models"), refetchInterval: POLL_MS * 2 });
+
+export const useApiKeys = () => useQuery({ queryKey: ["gateway", "keys"], queryFn: () => api<ApiKeyInfo[]>("/gateway/keys") });
+
+function useInvalidateGateway() {
+  const qc = useQueryClient();
+  return () => void qc.invalidateQueries({ queryKey: ["gateway"] });
+}
+
+export function useCreateApiKey() {
+  const invalidate = useInvalidateGateway();
+  return useMutation({
+    mutationFn: (name: string) => api<CreatedApiKey>("/gateway/keys", { method: "POST", body: JSON.stringify({ name }) }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRevokeApiKey() {
+  const invalidate = useInvalidateGateway();
+  return useMutation({
+    mutationFn: (id: string) => api<ApiKeyInfo>(`/gateway/keys/${encodeURIComponent(id)}/revoke`, { method: "POST" }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useResync() {
+  const invalidate = useInvalidateGateway();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<Record<string, number>>("/gateway/resync", { method: "POST" }),
+    onSuccess: () => {
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ["instances"] });
+    },
+  });
+}
+
+export function useCleanupGatewayModel() {
+  const invalidate = useInvalidateGateway();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/gateway/models/${encodeURIComponent(id)}/cleanup`, { method: "POST" }),
+    onSuccess: invalidate,
   });
 }
 

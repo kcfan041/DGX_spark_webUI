@@ -103,6 +103,45 @@ try {
   await page.getByText("外部系統可用「ui-e2e」呼叫").waitFor({ timeout: 60000 });
   log("14 restarted after fix -> READY");
 
+  // gateway: create key in UI, use it from an "external client", revoke it
+  const GATEWAY = process.env.GATEWAY ?? "http://127.0.0.1:4000/v1";
+  await page.goto(`${BASE}/gateway`);
+  await page.getByText("ui-e2e").first().waitFor();
+  await page.screenshot({ path: `${OUT}/09a-gateway.png`, fullPage: true });
+  await page.getByTestId("create-key").click();
+  await page.getByPlaceholder("例如：院內系統A").fill("E2E 外部系統");
+  await page.getByRole("dialog").getByRole("button", { name: "建立 API Key" }).click();
+  const newKey = (await page.getByTestId("new-key").textContent())?.trim();
+  log("15a key created once:", newKey?.slice(0, 6) + "…");
+  await page.screenshot({ path: `${OUT}/09b-key-created.png`, fullPage: true });
+  if (!(await page.getByTestId("close-created").isDisabled())) throw new Error("close should be disabled before ack");
+  await page.getByTestId("saved-confirm").click();
+  await page.getByTestId("close-created").click();
+  await page.getByText("E2E 外部系統").waitFor();
+  if (await page.getByText(newKey).count()) throw new Error("full key still visible after close");
+  log("15b key listed masked");
+
+  const chat = async () =>
+    fetch(`${GATEWAY}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${newKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "ui-e2e", messages: [{ role: "user", content: "external hello" }], max_tokens: 16 }),
+    });
+  const ok = await chat();
+  log("15c external client with new key:", ok.status, ((await ok.json()).choices?.[0]?.message?.content ?? "").slice(0, 40));
+  if (ok.status !== 200) throw new Error("external call failed");
+
+  await page.getByRole("button", { name: "撤銷" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: "撤銷" }).click();
+  await page.getByText("已撤銷", { exact: true }).first().waitFor();
+  let denied = 0;
+  for (let i = 0; i < 10 && denied !== 401; i++) {
+    denied = (await chat()).status;
+    if (denied !== 401) await page.waitForTimeout(1000);
+  }
+  log("15d after revoke, external call status:", denied);
+  if (denied !== 401) throw new Error("revoked key still accepted");
+
   // services list + stop with confirm
   await page.goto(`${BASE}/services`);
   await page.getByRole("link", { name: /ui-e2e|fake-model/ }).first().waitFor();

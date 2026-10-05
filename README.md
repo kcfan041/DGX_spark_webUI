@@ -60,7 +60,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] P1 Spark 實機驗證（2026-10-05，`P1 CHECK PASS`）
 - [x] P2：Frontend 主流程（建立 Wizard、模型服務詳細頁、錯誤卡片與建議、設定編輯、Logs 即時串流、事件、診斷）
 - [ ] P2 Spark 實機 UI 驗證
-- [ ] P3：Gateway 頁（API Key 建立 / 撤銷）
+- [x] P3：Gateway 頁（API Key 建立 / 只顯示一次 / 撤銷、已發布模型同步與清除、連線資訊）
 
 ## mock-vllm 失敗模擬（dev profile）
 

@@ -72,6 +72,8 @@ class FakeGateway:
     def __init__(self) -> None:
         self.models: dict[str, dict[str, Any]] = {}
         self.keys: set[str] = set()
+        self.key_rows: dict[str, dict[str, Any]] = {}
+        self.down = False
         self.register_error: GatewayError | None = None
         self.chats: list[dict[str, Any]] = []
 
@@ -97,11 +99,39 @@ class FakeGateway:
 
     async def generate_key(self, alias: str, metadata: dict[str, Any]) -> dict[str, Any]:
         k = f"sk-{uuid.uuid4().hex}"
+        token = uuid.uuid4().hex + uuid.uuid4().hex
         self.keys.add(k)
-        return {"key": k, "key_alias": alias}
+        self.key_rows[token] = {
+            "token": token,
+            "key_name": f"sk-...{k[-4:]}",
+            "key_alias": alias,
+            "metadata": metadata,
+            "blocked": None,
+            "created_at": "2026-10-05T06:35:09.767000Z",
+            "_key": k,
+        }
+        return {
+            "key": k,
+            "key_alias": alias,
+            "token": token,
+            "key_name": f"sk-...{k[-4:]}",
+            "created_at": "2026-10-05T06:35:09.767000Z",
+        }
 
     async def delete_key(self, key_or_token: str) -> None:
         self.keys.discard(key_or_token)
+
+    async def block_key(self, key_or_token: str) -> None:
+        if self.down:
+            raise GatewayError("connection refused")
+        row = self.key_rows[key_or_token]
+        row["blocked"] = True
+        self.keys.discard(row["_key"])
+
+    async def list_keys(self, page_size: int = 100) -> list[dict[str, Any]]:
+        if self.down:
+            raise GatewayError("connection refused")
+        return [{k: v for k, v in r.items() if k != "_key"} for r in self.key_rows.values()]
 
     async def chat(self, *, api_key: str, model: str, content: str, max_tokens: int = 32) -> dict[str, Any]:
         if api_key not in self.keys:

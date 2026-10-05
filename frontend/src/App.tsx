@@ -3,11 +3,11 @@ import { RequireAuth } from "@/auth/RequireAuth";
 import { AppLayout } from "@/layout/AppLayout";
 import { CreateServicePage } from "@/pages/CreateServicePage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { GatewayPage } from "@/pages/GatewayPage";
 import { LogsPage } from "@/pages/LogsPage";
 import { ServiceDetailPage } from "@/pages/ServiceDetailPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ModelsPage } from "@/pages/ModelsPage";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { ServicesPage } from "@/pages/ServicesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
@@ -27,7 +27,7 @@ export function App() {
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/services/new" element={<CreateServicePage />} />
         <Route path="/services/:id" element={<ServiceDetailPage />} />
-        <Route path="/gateway" element={<PlaceholderPage titleKey="gateway.title" />} />
+        <Route path="/gateway" element={<GatewayPage />} />
         <Route path="/logs" element={<LogsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

@@ -228,6 +228,36 @@ export interface TestResult {
   error: string | null;
 }
 
+export interface ApiKeyInfo {
+  id: string;
+  name: string;
+  masked: string;
+  status: "active" | "revoked";
+  created_at: string | null;
+  last_active: string | null;
+  system: boolean;
+}
+
+export interface CreatedApiKey extends ApiKeyInfo {
+  key: string;
+}
+
+export interface GatewayModel {
+  model_name: string;
+  gateway_model_id: string;
+  instance_id: string | null;
+  instance_name: string | null;
+  instance_status: InstanceStatus | null;
+  sync: "ok" | "orphan";
+}
+
+export interface GatewayStatus {
+  reachable: boolean;
+  db_connected: boolean;
+  version?: string | null;
+  error?: string;
+}
+
 export interface AutostartProgress {
   state: "idle" | "running" | "done" | "cancelled";
   queue: string[];
