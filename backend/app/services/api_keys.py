@@ -1,4 +1,5 @@
 import re
+import secrets
 from datetime import datetime
 from typing import Any, Literal
 
@@ -48,7 +49,7 @@ class KeyError_(Exception):
 
 def _alias(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "key"
-    return f"dgxsp-{slug}"
+    return f"dgxsp-{slug}-{secrets.token_hex(4)}"
 
 
 def _parse_dt(v: Any) -> datetime | None:
@@ -85,9 +86,14 @@ class ApiKeyService:
         return sorted(out, key=lambda k: (k.status != "active", -(k.created_at.timestamp() if k.created_at else 0)))
 
     async def create(self, req: CreateKeyRequest) -> CreatedKey:
-        resp = await self.gateway.generate_key(
-            _alias(req.name), {"created_by": CREATED_BY, "purpose": PURPOSE_USER, "display_name": req.name}
-        )
+        try:
+            resp = await self.gateway.generate_key(
+                _alias(req.name), {"created_by": CREATED_BY, "purpose": PURPOSE_USER, "display_name": req.name}
+            )
+        except GatewayError as e:
+            if e.status_code is None:
+                raise
+            raise KeyError_("GATEWAY_REGISTER_FAILED", 502) from e
         key = str(resp.get("key") or "")
         if not key:
             raise KeyError_("GATEWAY_REGISTER_FAILED", 502)

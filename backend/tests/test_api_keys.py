@@ -47,6 +47,14 @@ async def test_revoke_guards() -> None:
     assert e.value.code == "KEY_NOT_FOUND"
 
 
+async def test_same_name_twice() -> None:
+    svc = ApiKeyService(FakeGateway())
+    a = await svc.create(CreateKeyRequest(name="OpenCode"))
+    b = await svc.create(CreateKeyRequest(name="OpenCode"))
+    assert a.id != b.id
+    assert [k.name for k in await svc.list()] == ["OpenCode", "OpenCode"]
+
+
 def test_name_validation() -> None:
     with pytest.raises(ValueError):
         CreateKeyRequest(name="   ")

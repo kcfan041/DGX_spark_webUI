@@ -98,6 +98,8 @@ class FakeGateway:
         return list(self.models.values())
 
     async def generate_key(self, alias: str, metadata: dict[str, Any]) -> dict[str, Any]:
+        if any(r["key_alias"] == alias for r in self.key_rows.values()):
+            raise GatewayError(f"Key with alias '{alias}' already exists", 400)
         k = f"sk-{uuid.uuid4().hex}"
         token = uuid.uuid4().hex + uuid.uuid4().hex
         self.keys.add(k)

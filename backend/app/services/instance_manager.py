@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import logging
+import secrets
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -488,7 +489,9 @@ class InstanceManager:
         key = None if regenerate else self._get_setting(TEST_KEY_SETTING)
         if key:
             return key
-        resp = await self.gateway.generate_key("dgxsp-system-test", {"created_by": "dgxsp", "purpose": "system-test"})
+        resp = await self.gateway.generate_key(
+            f"dgxsp-system-test-{secrets.token_hex(4)}", {"created_by": "dgxsp", "purpose": "system-test"}
+        )
         key = str(resp["key"])
         self._set_setting(TEST_KEY_SETTING, key)
         return key

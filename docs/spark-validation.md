@@ -176,10 +176,18 @@ scripts/p1-check.sh                           # 預設使用 /data/models/Qwen2.
   與 smoke 觀察一致；Planner 的 `PAGE_CACHE_HIGH` 提示在大模型時會出現，實際影響待 7B+ 模型驗證。
 - **0.5B 載入約 2 分鐘**（主要是 compile / CUDA graph）：UI 的「已等待」計時與步驟條是必要的；大模型可能更久。
 
-### 待補測（P1 之後再做）
+## 8. 驗證 2.0（大模型 / 同時運行 / 真實啟動失敗 / 重開機）
 
-- [ ] 7B–8B 模型載入時間與記憶體峰值
-- [ ] 兩個 instance 同時運行
-- [ ] 真正的記憶體不足（OOM）樣本與 `OOMKilled` 行為
+工具：`scripts/v2-check.sh`，每個階段結果寫在 `smoke/results/v2-<phase>-*.log`。
+
+| 階段 | 驗證 | 用途 |
+|---|---|---|
+| `big` | Qwen2.5-7B-Instruct（Balanced）載入時間、記憶體前後、經 LiteLLM 測試、256 token 吞吐、vLLM 記憶體相關 log | 校正健康檢查逾時、記憶體預估、預設值 |
+| `concurrent` | 7B + 0.5B（15%）同時運行、都能回應、Gateway 同步 | 多服務記憶體行為 |
+| `oom` | 7B 以 `gpu_memory_utilization=0.1` 啟動（預期失敗），收集真實錯誤 log | 校正 `configs/error-patterns.yaml` |
+| `reboot-prep` → `sudo reboot` → `reboot-verify` | 2 個自動啟動服務（0.5B 順序 1、7B 順序 2），重開機後依序就緒並可回應 | 開機自動啟動 |
+| `cleanup` | 刪除所有 `v2-*` 服務 | |
+
+### 待補測
+
 - [ ] 量化模型（FP8 / NVFP4 / AWQ）
-- [ ] Spark 重開機後平台自動復原（autostart）
