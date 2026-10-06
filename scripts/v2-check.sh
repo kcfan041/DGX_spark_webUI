@@ -336,6 +336,8 @@ phase_cleanup() {
   section "cleanup"
   for n in v2-7b v2-small v2-oom v2-auto-small v2-auto-7b v2-preview; do remove "$n"; done
   echo "  managed containers left: $(docker ps -aq --filter label=dgxsp.managed=true | wc -l)"
+  docker ps -a --filter label=dgxsp.managed=true --format '    {{.Names}}  {{.Label "dgxsp.served_model_name"}}  {{.Status}}'
+  echo "  (containers of services you created in the Web Console are kept while the service exists; only v2-* are removed)"
 }
 
 case "$PHASE" in

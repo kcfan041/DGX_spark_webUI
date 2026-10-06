@@ -218,7 +218,16 @@ scripts/p1-check.sh                           # 預設使用 /data/models/Qwen2.
 - **OOM 建議**：log 出現負的 KV cache 時，建議「提高記憶體使用比例到 X %」，不再建議降低對話長度。
 - **錯誤規則**：`error-patterns.yaml` 支援 `require`（只有真正的錯誤行才算命中與當作證據）與具名群組（擷取 `kv_gib`、`weights_gib` 等數字）。
 
-### 待補測
+### 第 3 輪：2026-10-06 11:23（一次只載入一個 + 實際重開機）
 
-- [ ] reboot-verify（開機自動啟動，含新的「一次只載入一個」）
+| 項目 | 結果 |
+|---|---|
+| reboot-prep | ✅ 0.5B 127 s 就緒；7B 先「排隊」，0.5B 完成後才載入，207 s 就緒 |
+| `sudo reboot` → reboot-verify | ✅ 開機 2 分鐘時平台已可連線；偵測到 `host_restarted` |
+| 開機自動啟動 | ✅ 依順序 0.5B → 7B，約 228 s 全部就緒並可經 Gateway 回應 |
+| 自動算出的比例 | 0.5B 省記憶體約 11.8 GB；7B 均衡約 28.4 GB；合計 40 GB |
+
+結論：開機自動啟動、依序載入、Gateway 自動重新發布都在實機驗證通過。
+
+### 待補測
 - [ ] 量化模型（FP8 / NVFP4 / AWQ）
