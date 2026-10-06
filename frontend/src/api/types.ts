@@ -102,7 +102,7 @@ export interface Instance {
   } | null;
 }
 
-export type Phase = "preparing" | "creating" | "loading" | "registering" | "ready";
+export type Phase = "queued" | "preparing" | "creating" | "loading" | "registering" | "ready";
 
 export interface InstanceParams {
   max_model_len: number;

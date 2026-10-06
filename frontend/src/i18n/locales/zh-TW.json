@@ -127,6 +127,7 @@
     "failed": "發布失敗"
   },
   "phase": {
+    "queued": "排隊中",
     "preparing": "準備設定",
     "creating": "建立服務",
     "loading": "載入模型",
@@ -290,6 +291,7 @@
     "HOST_PORT_INVALID": "port {{port}} 不在可用範圍（1024–65535）",
     "HOST_PORT_CONFLICT": "port {{port}} 已被其他模型服務使用",
     "WEIGHTS_EXCEED_TOTAL": "模型權重大於這台機器的總記憶體，無法載入",
+    "WEIGHTS_EXCEED_BUDGET": "記憶體使用比例太低：預先保留 {{budget}}，連模型權重 {{weights}} 都放不下。請至少設為 {{min_ratio}}",
     "ESTIMATE_EXCEEDS_BUDGET": "預估需要的記憶體超過此服務的配額，可能啟動失敗",
     "TOTAL_UTIL_HIGH": "其他運行中的服務已使用 {{others}}，合計 {{combined}}，可能導致啟動失敗",
     "AVAILABLE_LOW": "此服務配額大於目前系統可用記憶體，可能啟動失敗",
@@ -338,6 +340,8 @@
     "memoryQuota": "記憶體配額 {{ratio}}%（≈ {{size}}，估算）",
     "currentSettings": "目前設定",
     "loadingTitle": "正在載入模型…",
+    "queuedTitle": "排隊中：等待其他模型服務載入完成",
+    "queuedHint": "為了讓記憶體計算正確，平台一次只載入一個模型。前一個載入完成後就會自動開始。",
     "waited": "已等待 {{time}}",
     "loadingHint": "大模型第一次載入可能需要數分鐘，這是正常的。",
     "slowHint": "比預期久，建議查看 Log",
@@ -367,6 +371,7 @@
     "created": "建立",
     "updated": "修改設定",
     "start_requested": "開始啟動",
+    "queued": "排隊中（等待其他模型載入完成）",
     "container_started": "服務已建立，開始載入模型",
     "model_loaded": "模型載入完成（{{seconds}} 秒）",
     "gateway_registered": "已發布到 Gateway",
@@ -478,8 +483,9 @@
     },
     "OOM": {
       "title": "模型啟動失敗：可用記憶體不足",
-      "description": "此模型加上目前設定所需的記憶體，超過了可用量。",
+      "description": "此模型加上目前設定所需的記憶體，超過了預先保留的量（記憶體使用比例太低，或最長對話長度太長）。",
       "suggest": {
+        "raise_ratio": "把記憶體使用比例提高到 {{value}}% 並重試",
         "reduce_context": "降低最長對話長度至 {{value}} 並重試",
         "low_memory": "改用「省記憶體」",
         "view_running": "查看其他運行中的服務"

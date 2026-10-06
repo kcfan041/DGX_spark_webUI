@@ -16,14 +16,21 @@
       - "Free memory on device .* is less than desired GPU memory utilization"
 - code: OOM
   match: { oom_killed: true }
+# Budget too small for weights (seen on Spark 2026-10-06: 7B @ 0.10 ->
+#   "Available KV cache memory: -6.06 GiB" then "No available memory for the cache blocks").
 - code: OOM
   match:
     log:
+      - "Available KV cache memory: (?P<kv_gib>-?[\\d.]+) GiB"
+      - "Model loading took (?P<weights_gib>[\\d.]+) GiB memory"
+      - "Desired GPU memory utilization is \\((?P<requested_ratio>[\\d.]+), (?P<requested_gib>[\\d.]+) GiB\\)"
       - "out of memory"
       - "OutOfMemoryError"
       - "No available memory for the cache blocks"
       - "insufficient memory"
       - "Cannot allocate memory"
+    require:
+      - "out of memory|OutOfMemoryError|No available memory for the cache blocks|insufficient memory|Cannot allocate memory"
 - code: OOM
   match: { exit_code: [137] }
 - code: REMOTE_CODE_REQUIRED

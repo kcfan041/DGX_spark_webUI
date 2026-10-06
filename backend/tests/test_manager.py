@@ -119,6 +119,40 @@ async def test_full_lifecycle(env: Env) -> None:
     assert env.runtime.containers == {}
 
 
+async def test_loads_are_serialized(env: Env) -> None:
+    env.probe.ready_after = 5
+    a = env.create(served_model_name="first", params={"gpu_memory_utilization": 0.2})
+    b = env.create(served_model_name="second", params={"gpu_memory_utilization": 0.2})
+    await env.mgr.start(a)
+    await asyncio.sleep(0.02)
+    await env.mgr.start(b)
+    await asyncio.sleep(0.02)
+    assert env.mgr.get(a).status == InstanceStatus.LOADING
+    second = env.mgr.get(b)
+    assert second.status == InstanceStatus.STARTING
+    assert second.phase == "queued"
+    assert [s.name for s in env.runtime.runs] == [f"dgxsp-vllm-{a}"]
+    await env.mgr.wait_idle(a)
+    await env.mgr.wait_idle(b)
+    assert env.mgr.get(b).status == InstanceStatus.READY
+    assert [s.name for s in env.runtime.runs] == [f"dgxsp-vllm-{a}", f"dgxsp-vllm-{b}"]
+    assert "queued" in [e.type for e in env.mgr.events(b)]
+
+
+async def test_cancel_while_queued(env: Env) -> None:
+    env.probe.ready_after = 10**9
+    a = env.create(served_model_name="first", params={"gpu_memory_utilization": 0.2})
+    b = env.create(served_model_name="second", params={"gpu_memory_utilization": 0.2})
+    await env.mgr.start(a)
+    await asyncio.sleep(0.02)
+    await env.mgr.start(b)
+    await asyncio.sleep(0.02)
+    await env.mgr.cancel(b)
+    assert env.mgr.get(b).status == InstanceStatus.STOPPED
+    assert len(env.runtime.runs) == 1
+    await env.mgr.cancel(a)
+
+
 async def test_restart(env: Env) -> None:
     iid = env.create()
     await env.mgr.start(iid)

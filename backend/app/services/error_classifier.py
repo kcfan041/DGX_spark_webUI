@@ -19,10 +19,14 @@ class Pattern:
     oom_killed: bool | None = None
     exit_codes: list[int] = field(default_factory=list)
     log: list[re.Pattern[str]] = field(default_factory=list)
+    require: list[re.Pattern[str]] = field(default_factory=list)
 
 
 SUGGESTIONS: dict[ErrorCode, list[Suggestion]] = {
     ErrorCode.OOM: [
+        Suggestion(
+            action="edit", label_key="errors.OOM.suggest.raise_ratio", patch={"gpu_memory_utilization": "raise"}
+        ),
         Suggestion(action="edit", label_key="errors.OOM.suggest.reduce_context", patch={"max_model_len": 8192}),
         Suggestion(action="apply_preset", label_key="errors.OOM.suggest.low_memory", preset="low_memory"),
         Suggestion(action="navigate", label_key="errors.OOM.suggest.view_running", target="/services?status=ready"),
@@ -72,11 +76,43 @@ def _ratio_target(err: InstanceError, current: float) -> float | None:
     return round(target, 2)
 
 
+MAX_RATIO = 0.95
+
+
+def _raise_target(err: InstanceError, current: float) -> float | None:
+    """Budget could not even hold the weights (negative KV): suggest a ratio that fits weights + some KV."""
+    try:
+        kv = float(err.params["kv_gib"])
+        total = float(err.params.get("total_gib") or 0) or float(err.params["requested_gib"]) / current
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        return None
+    if kv >= 0 or total <= 0 or current <= 0:
+        return None
+    target = math.ceil((current + (-kv + 4.0) / total) * 20) / 20
+    if target <= current:
+        return None
+    return round(min(target, MAX_RATIO), 2)
+
+
 def tailor_suggestions(err: InstanceError, current: dict[str, Any], model_max_context: int | None) -> InstanceError:
     """Make generic suggestions concrete for this instance; drop ones that would not change anything."""
     out: list[Suggestion] = []
+    weights_too_big = False
+    try:
+        weights_too_big = float(err.params.get("kv_gib", "0")) < 0
+    except (TypeError, ValueError):
+        weights_too_big = False
     for s in err.suggestions:
         patch = dict(s.patch or {})
+        if patch.get("gpu_memory_utilization") == "raise":
+            target = _raise_target(err, float(current.get("gpu_memory_utilization") or 0))
+            if target is None:
+                continue
+            patch["gpu_memory_utilization"] = target
+            out.append(s.model_copy(update={"patch": patch, "params": {**s.params, "value": round(target * 100)}}))
+            continue
+        if "max_model_len" in patch and weights_too_big:
+            continue
         if "gpu_memory_utilization" in patch:
             target = _ratio_target(err, float(current.get("gpu_memory_utilization") or 0))
             if target is None:
@@ -127,6 +163,7 @@ class ErrorClassifier:
                     oom_killed=m.get("oom_killed"),
                     exit_codes=list(m.get("exit_code") or []),
                     log=[re.compile(p, re.IGNORECASE) for p in m.get("log") or []],
+                    require=[re.compile(p, re.IGNORECASE) for p in m.get("require") or []],
                 )
             )
         return cls(patterns)
@@ -141,19 +178,22 @@ class ErrorClassifier:
                 return make_error(p.code, evidence=self._tail_errors(logs), params={"exit_code": exit_code})
             if p.log:
                 hits = [ln for ln in logs if any(rx.search(ln) for rx in p.log)]
-                if hits:
+                required = p.require
+                evidence = [ln for ln in logs if any(rx.search(ln) for rx in required)] if required else hits
+                if hits and evidence:
                     params: dict[str, Any] = {"exit_code": exit_code}
                     for ln in hits:
                         for rx in p.log:
                             m = rx.search(ln)
                             if m:
                                 params.update({k: v for k, v in m.groupdict().items() if v is not None})
-                    return make_error(p.code, evidence=hits[-5:], params=params)
+                    return make_error(p.code, evidence=evidence[-5:], params=params)
         return make_error(default, evidence=self._tail_errors(logs), params={"exit_code": exit_code})
 
     def annotate(self, line: str) -> str | None:
         for p in self.patterns:
-            if p.log and any(rx.search(line) for rx in p.log):
+            rules = p.require or p.log
+            if rules and any(rx.search(line) for rx in rules):
                 return p.code.value
         return None
 

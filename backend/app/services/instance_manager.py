@@ -14,7 +14,7 @@ from sqlmodel import Session, col, delete, select
 from app.adapters.docker_runtime import ContainerSpec
 from app.adapters.litellm_client import INSTANCE_FIELD, GatewayError
 from app.adapters.metrics import MemoryStats
-from app.adapters.model_sources import ModelCatalog
+from app.adapters.model_sources import ModelCatalog, ModelMeta
 from app.db.models import Instance, InstanceEvent, SystemSetting
 from app.domain.errors import ErrorCode, InstanceError
 from app.domain.instance import ACTIVE_STATUSES, GatewayState, InstancePhase, InstanceStatus
@@ -112,6 +112,9 @@ class InstanceManager:
         self._background: list[asyncio.Task[None]] = []
         self._autostart_task: asyncio.Task[None] | None = None
         self.autostart = AutostartProgress()
+        # vLLM sizes its memory reservation from free memory at startup; loading two models at the same
+        # time makes both see stale free memory (measured on Spark: 0.5B failed while 7B was loading).
+        self._load_gate = asyncio.Lock()
 
     # ------------------------------------------------------------------ helpers
 
@@ -332,42 +335,55 @@ class InstanceManager:
                 return
             params = InstanceParams(**inst.params)
             name = self.container_name(inst)
-            spec = ContainerSpec(
-                name=name,
-                instance_id=inst.id,
-                served_model_name=inst.served_model_name,
-                command=build_command(self.profile, model, inst.served_model_name, params),
-                host_model_path=model.mount_host_path,
-                container_model_path=self.profile.vllm.model_mount,
-                host_port=params.host_port,
-            )
-            self._update(instance_id, phase=InstancePhase.CREATING.value)
-            run_fut = asyncio.ensure_future(asyncio.to_thread(self.runtime.run, spec))
-            try:
-                container_id = await asyncio.shield(run_fut)
-            except asyncio.CancelledError:
-                with contextlib.suppress(Exception):
-                    await run_fut
-                await asyncio.to_thread(self.runtime.stop, name, self.profile.timeouts.stop_s)
-                raise
-            except Exception as e:
-                code = self._classify_run_error(str(e))
-                self._set_error(instance_id, make_error(code, evidence=[str(e)[:500]]))
-                return
-            self._update(
-                instance_id,
-                status=InstanceStatus.LOADING,
-                phase=InstancePhase.LOADING.value,
-                container_id=container_id,
-                container_name=name,
-            )
-            self.event(instance_id, "container_started", container=name)
-            await self._wait_ready(instance_id, name)
+            if self._load_gate.locked():
+                self._update(instance_id, phase=InstancePhase.QUEUED.value, phase_started_at=utcnow())
+                self.event(instance_id, "queued")
+            async with self._load_gate:
+                loaded = await self._create_and_wait(instance_id, inst, model, params, name)
+            if loaded:
+                await self._mark_ready_and_register(instance_id)
         except asyncio.CancelledError:
             raise
         except Exception as e:
             log.exception("start failed for %s", instance_id)
             self._set_error(instance_id, make_error(ErrorCode.UNKNOWN, evidence=[repr(e)[:500]]))
+
+    async def _create_and_wait(
+        self, instance_id: str, inst: Instance, model: ModelMeta, params: InstanceParams, name: str
+    ) -> bool:
+        if self.get(instance_id).phase == InstancePhase.QUEUED.value:
+            self._update(instance_id, phase=InstancePhase.PREPARING.value, phase_started_at=utcnow())
+        spec = ContainerSpec(
+            name=name,
+            instance_id=inst.id,
+            served_model_name=inst.served_model_name,
+            command=build_command(self.profile, model, inst.served_model_name, params),
+            host_model_path=model.mount_host_path,
+            container_model_path=self.profile.vllm.model_mount,
+            host_port=params.host_port,
+        )
+        self._update(instance_id, phase=InstancePhase.CREATING.value)
+        run_fut = asyncio.ensure_future(asyncio.to_thread(self.runtime.run, spec))
+        try:
+            container_id = await asyncio.shield(run_fut)
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                await run_fut
+            await asyncio.to_thread(self.runtime.stop, name, self.profile.timeouts.stop_s)
+            raise
+        except Exception as e:
+            code = self._classify_run_error(str(e))
+            self._set_error(instance_id, make_error(code, evidence=[str(e)[:500]]))
+            return False
+        self._update(
+            instance_id,
+            status=InstanceStatus.LOADING,
+            phase=InstancePhase.LOADING.value,
+            container_id=container_id,
+            container_name=name,
+        )
+        self.event(instance_id, "container_started", container=name)
+        return await self._wait_loaded(instance_id, name)
 
     @staticmethod
     def _classify_run_error(msg: str) -> ErrorCode:
@@ -384,6 +400,10 @@ class InstanceManager:
         return ErrorCode.UNKNOWN
 
     async def _wait_ready(self, instance_id: str, name: str) -> None:
+        if await self._wait_loaded(instance_id, name):
+            await self._mark_ready_and_register(instance_id)
+
+    async def _wait_loaded(self, instance_id: str, name: str) -> bool:
         inst = self.get(instance_id)
         deadline = time.monotonic() + self.profile.timeouts.health_s
         base = self.internal_base(inst)
@@ -391,12 +411,12 @@ class InstanceManager:
             st = await asyncio.to_thread(self.runtime.state, name)
             if st is None:
                 self._set_error(instance_id, make_error(ErrorCode.CONTAINER_MISSING))
-                return
+                return False
             if st.status in ("exited", "dead"):
                 await self._fail_from_container(instance_id, name, st.exit_code, st.oom_killed)
-                return
+                return False
             if await self.probe.ready(base, inst.served_model_name):
-                break
+                return True
             if time.monotonic() > deadline:
                 logs = await asyncio.to_thread(self.runtime.logs, name, 300)
                 await asyncio.to_thread(self.runtime.stop, name, self.profile.timeouts.stop_s)
@@ -404,9 +424,11 @@ class InstanceManager:
                     ErrorCode.HEALTH_TIMEOUT, evidence=logs[-5:], params={"timeout_s": self.profile.timeouts.health_s}
                 )
                 self._set_error(instance_id, err)
-                return
+                return False
             await asyncio.sleep(self.poll_interval)
 
+    async def _mark_ready_and_register(self, instance_id: str) -> None:
+        inst = self.get(instance_id)
         loaded_s = round((utcnow() - (inst.phase_started_at or utcnow()).replace(tzinfo=UTC)).total_seconds(), 1)
         self.event(instance_id, "model_loaded", seconds=loaded_s)
         self._update(
@@ -422,6 +444,9 @@ class InstanceManager:
         err = self.classifier.classify(exit_code=exit_code, oom_killed=oom, logs=logs)
         inst = self.get(instance_id)
         model = self.catalog.get(inst.model_id)
+        mem = self.memory()
+        if mem and "total_gib" not in err.params:
+            err.params["total_gib"] = f"{mem.total_bytes / 2**30:.2f}"
         err = tailor_suggestions(err, inst.params, model.max_context if model else None)
         await self._deregister(inst)
         self._set_error(instance_id, err)

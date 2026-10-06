@@ -89,7 +89,14 @@ describe("i18n coverage", () => {
     "GATEWAY_UNREACHABLE", "GATEWAY_REGISTER_FAILED", "GATEWAY_MODEL_NOT_FOUND", "GATEWAY_PORT_IN_USE",
     "TEST_TIMEOUT", "AUTOSTART_SKIPPED_MEMORY", "UNKNOWN",
   ];
+  it("has the queued phase and event", () => {
+    expect(zhTW.phase.queued).toBeTruthy();
+    expect(zhTW.events.queued).toBeTruthy();
+    expect(zhTW.errors.OOM.suggest.raise_ratio).toContain("{{value}}");
+  });
+
   const warningCodes = [
+    "WEIGHTS_EXCEED_BUDGET",
     "NAME_INVALID", "NAME_DUPLICATE", "CONTEXT_TOO_SMALL", "CONTEXT_MODEL_UNKNOWN", "CONTEXT_EXCEEDS_MODEL",
     "MEM_UTIL_OUT_OF_RANGE", "REMOTE_CODE_ENABLED", "REMOTE_CODE_LIKELY_REQUIRED", "EXTRA_ARGS_INVALID",
     "EXTRA_ARGS_FORBIDDEN", "EXTRA_ARGS_PRESENT", "HOST_PORT_INVALID", "HOST_PORT_CONFLICT", "WEIGHTS_EXCEED_TOTAL",

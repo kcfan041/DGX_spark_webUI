@@ -1,3 +1,4 @@
+import math
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -19,6 +20,15 @@ from app.profiles import RuntimeProfile
 from app.services.presets import FIT_OVERHEAD_BYTES, PresetResolver
 
 OVERHEAD_BYTES = FIT_OVERHEAD_BYTES
+
+
+def min_ratio_for(weights_bytes: int, total_bytes: int | None) -> float | None:
+    """Smallest ratio (rounded up to 5 %) that can hold weights + overhead + a little KV cache."""
+    if not total_bytes:
+        return None
+    need = weights_bytes + OVERHEAD_BYTES + 2 * 2**30
+    return round(math.ceil(need / total_bytes * 20) / 20, 2)
+
 
 Level = Literal["info", "warning", "blocking"]
 
@@ -211,8 +221,28 @@ class Planner:
     ) -> list[Warning_]:
         w: list[Warning_] = []
         mem = self.profile.memory
+        quantizing_at_load = params.quantization not in ("auto", "", None) and params.quantization != (
+            model.quantization or ""
+        )
         if est.weights_bytes and est.system_total_bytes and est.weights_bytes > est.system_total_bytes:
             w.append(Warning_(code="WEIGHTS_EXCEED_TOTAL", level="blocking"))
+        elif (
+            est.weights_bytes
+            and est.budget_bytes
+            and not quantizing_at_load
+            and est.weights_bytes + OVERHEAD_BYTES > est.budget_bytes
+        ):
+            w.append(
+                Warning_(
+                    code="WEIGHTS_EXCEED_BUDGET",
+                    level="blocking",
+                    params={
+                        "weights": est.weights_bytes,
+                        "budget": est.budget_bytes,
+                        "min_ratio": min_ratio_for(est.weights_bytes, est.system_total_bytes),
+                    },
+                )
+            )
         elif est.total_bytes and est.budget_bytes and est.total_bytes > est.budget_bytes:
             w.append(
                 Warning_(

@@ -238,6 +238,73 @@ def test_gpu_memory_in_use_from_real_spark_log() -> None:
     assert [s.action for s in none_fit.suggestions] == ["navigate"]
 
 
+SPARK_KV_NEGATIVE_LOG = [
+    "(EngineCore pid=170) INFO 10-06 01:57:10 [model_runner.py:407] "
+    "Model loading took 14.29 GiB memory and 113.37 seconds",
+    "(EngineCore pid=170) INFO 10-06 01:58:01 [gpu_worker.py:765] Available KV cache memory: -6.06 GiB",
+    "(EngineCore pid=170) ERROR 10-06 01:58:01 [core.py:1436] ValueError: No available memory for the cache blocks. "
+    "Try increasing `gpu_memory_utilization` when initializing the engine",
+    "RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}",
+]
+
+
+def test_oom_weights_exceed_budget_from_real_spark_log() -> None:
+    from app.services.error_classifier import tailor_suggestions
+
+    c = ErrorClassifier.from_file(REPO_ROOT / "configs" / "error-patterns.yaml")
+    err = c.classify(exit_code=1, oom_killed=False, logs=SPARK_KV_NEGATIVE_LOG)
+    assert err.code == "OOM"
+    assert err.params["kv_gib"] == "-6.06"
+    assert err.params["weights_gib"] == "14.29"
+    assert all("No available memory" in e for e in err.evidence)
+
+    err.params["total_gib"] = "121.69"
+    t = tailor_suggestions(err, {"gpu_memory_utilization": 0.1, "max_model_len": 8192}, 32768)
+    assert t.suggestions[0].label_key == "errors.OOM.suggest.raise_ratio"
+    assert t.suggestions[0].patch == {"gpu_memory_utilization": 0.2}
+    assert not any("reduce_context" in s.label_key for s in t.suggestions)
+
+
+def test_oom_kv_only_keeps_reduce_context() -> None:
+    from app.services.error_classifier import tailor_suggestions
+
+    c = ErrorClassifier.from_file(REPO_ROOT / "configs" / "error-patterns.yaml")
+    err = c.classify(exit_code=1, oom_killed=False, logs=["ValueError: No available memory for the cache blocks."])
+    t = tailor_suggestions(err, {"gpu_memory_utilization": 0.3, "max_model_len": 32768}, 32768)
+    keys = [s.label_key for s in t.suggestions]
+    assert "errors.OOM.suggest.raise_ratio" not in keys
+    assert "errors.OOM.suggest.reduce_context" in keys
+
+
+def test_annotate_ignores_info_lines() -> None:
+    c = ErrorClassifier.from_file(REPO_ROOT / "configs" / "error-patterns.yaml")
+    assert c.annotate("INFO Model loading took 14.29 GiB memory and 97.1 seconds") is None
+    assert c.annotate("ValueError: No available memory for the cache blocks.") == "OOM"
+
+
+def test_weights_exceed_budget_blocks(model: ModelMeta) -> None:
+    big = spark_7b()
+    mem = MemoryStats(
+        total_bytes=SPARK_TOTAL,
+        available_bytes=SPARK_TOTAL,
+        free_bytes=SPARK_TOTAL,
+        cached_bytes=0,
+        swap_total_bytes=0,
+        swap_free_bytes=0,
+    )
+    planner = Planner(PROFILE, PRESETS)
+    plan = planner.plan(PlanInput(model_id=big.id, params={"gpu_memory_utilization": 0.1}), big, [], mem)
+    assert plan.blocking
+    w = next(x for x in plan.warnings if x.code == "WEIGHTS_EXCEED_BUDGET")
+    assert w.params["min_ratio"] == 0.2
+    ok = planner.plan(PlanInput(model_id=big.id, params={"gpu_memory_utilization": 0.25}), big, [], mem)
+    assert "WEIGHTS_EXCEED_BUDGET" not in codes(ok)
+    fp8 = planner.plan(
+        PlanInput(model_id=big.id, params={"gpu_memory_utilization": 0.1, "quantization": "fp8"}), big, [], mem
+    )
+    assert "WEIGHTS_EXCEED_BUDGET" not in codes(fp8)
+
+
 def test_tailor_suggestions() -> None:
     from app.domain.errors import ErrorCode
     from app.services.error_classifier import make_error, tailor_suggestions

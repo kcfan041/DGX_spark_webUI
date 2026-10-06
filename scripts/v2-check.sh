@@ -117,12 +117,24 @@ remove() {
 LAST_WAIT=0
 wait_status() {
   local id="$1" timeout="${2:-1500}" t0=$SECONDS j st gw ph
+  if [[ ! "$id" =~ ^[0-9a-f]{6,}$ ]]; then
+    echo "    could not create service: ${id:0:400}"
+    return 1
+  fi
   while (( SECONDS - t0 < timeout )); do
     j="$(api GET "/instances/$id")"
     st="$(echo "$j" | jq_ "d['status']")"; gw="$(echo "$j" | jq_ "d['gateway_state']")"; ph="$(echo "$j" | jq_ "d['phase']")"
     printf '\r    %5ss status=%-8s phase=%-11s gateway=%-10s' "$((SECONDS - t0))" "$st" "$ph" "$gw"
     LAST_WAIT=$((SECONDS - t0))
-    if [[ "$st" == "ERROR" ]]; then echo; return 1; fi
+    if [[ "$st" == "ERROR" ]]; then
+      echo
+      echo "$j" | "$PY" -c "
+import json,sys
+e=(json.load(sys.stdin).get('last_error') or {})
+print('    error:', e.get('code'), json.dumps(e.get('params') or {}, ensure_ascii=False))
+for x in (e.get('evidence') or [])[-3:]: print('      ', x[-220:])"
+      return 1
+    fi
     if [[ "$st" == "READY" && "$gw" != "pending" ]]; then echo; return 0; fi
     sleep 5
   done
@@ -211,8 +223,8 @@ phase_concurrent() {
     wait_status "$big" || { fail "7B not READY"; return; }
   fi
   remove v2-small
-  preview "$MODEL_SMALL" low_memory '{"gpu_memory_utilization":0.15}'
-  small="$(create v2-small "$MODEL_SMALL" low_memory '{"gpu_memory_utilization":0.15}' false 100 true)"
+  preview "$MODEL_SMALL" low_memory '{}'
+  small="$(create v2-small "$MODEL_SMALL" low_memory '{}' false 100 true)"
   if wait_status "$small"; then pass "0.5B READY next to 7B in ${LAST_WAIT}s"; else fail "0.5B failed next to 7B"; api GET "/instances/$small" | jq_ "json.dumps(d.get('last_error'), ensure_ascii=False)"; fi
   echo "  memory with both:"; mem
   for n in v2-7b v2-small; do
@@ -262,11 +274,18 @@ phase_reboot_prep() {
     || fail "docker service is not enabled on boot: run 'sudo systemctl enable docker'"
   remove v2-auto-small
   remove v2-auto-7b
-  local a b
-  a="$(create v2-auto-small "$MODEL_SMALL" low_memory '{"gpu_memory_utilization":0.15}' true 1 true)"
-  b="$(create v2-auto-7b "$MODEL_BIG" balanced '{"gpu_memory_utilization":0.5}' true 2 true)"
+  local a b before=$FAILS
+  a="$(create v2-auto-small "$MODEL_SMALL" low_memory '{}' true 1 true)"
+  b="$(create v2-auto-7b "$MODEL_BIG" balanced '{}' true 2 true)"
   wait_status "$a" && pass "auto-small READY" || fail "auto-small"
   wait_status "$b" && pass "auto-7b READY" || fail "auto-7b"
+  if (( FAILS > before )); then
+    cat <<'EOF'
+
+  NOT ready for reboot: fix the failure above first, then run reboot-prep again.
+EOF
+    return
+  fi
   date +%s > "$ROOT/smoke/results/.v2-reboot-start"
   cat <<'EOF'
 

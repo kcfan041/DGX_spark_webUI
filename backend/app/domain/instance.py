@@ -12,6 +12,7 @@ class InstanceStatus(StrEnum):
 
 
 class InstancePhase(StrEnum):
+    QUEUED = "queued"
     PREPARING = "preparing"
     CREATING = "creating"
     LOADING = "loading"

@@ -26,6 +26,14 @@ for svc in db litellm backend web; do
     "") bad "$svc container missing"; fix "${COMPOSE[*]} up -d" ;;
     *) bad "$svc is $st" ;;
   esac
+  info="$(docker inspect "dgxsp-$svc-1" --format '{{.RestartCount}}|{{.State.StartedAt}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}' 2>/dev/null || true)"
+  if [[ -n "$info" ]]; then
+    IFS='|' read -r restarts started health <<< "$info"
+    printf '         restarts=%s started=%s health=%s\n' "$restarts" "${started%.*}" "$health"
+    if [[ "$restarts" =~ ^[0-9]+$ ]] && (( restarts > 0 )); then
+      warn "$svc has restarted $restarts time(s) since it was created (check: ${COMPOSE[*]} logs --tail 100 $svc)"
+    fi
+  fi
 done
 
 section "shell environment overrides"
@@ -65,8 +73,14 @@ else
   echo "         containers on network dgxsp: $OTHERS"
 fi
 
-section "database auth errors (last 15)"
-docker logs --since 2h dgxsp-db-1 2>&1 | grep -E 'FATAL|DETAIL|authentication' | tail -n 15 | sed 's/^/  /' || true
+section "database auth errors (last 24h, newest 15)"
+AUTH_ERR="$(docker logs --since 24h --timestamps dgxsp-db-1 2>&1 | grep -E 'FATAL|DETAIL|authentication' | tail -n 15)"
+if [[ -n "$AUTH_ERR" ]]; then
+  printf '%s\n' "$AUTH_ERR" | sed 's/^/  /'
+  warn "database rejected logins in the last 24h (see above)"
+else
+  ok "no authentication errors in the last 24h"
+fi
 
 section "litellm"
 R="$(curl -s -m 5 "http://127.0.0.1:$(envval GATEWAY_PORT | sed 's/^$/4000/')/health/readiness" || true)"

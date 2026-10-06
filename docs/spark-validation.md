@@ -188,6 +188,37 @@ scripts/p1-check.sh                           # 預設使用 /data/models/Qwen2.
 | `reboot-prep` → `sudo reboot` → `reboot-verify` | 2 個自動啟動服務（0.5B 順序 1、7B 順序 2），重開機後依序就緒並可回應 | 開機自動啟動 |
 | `cleanup` | 刪除所有 `v2-*` 服務 | |
 
+### 第 1 輪：2026-10-06 01:10（LiteLLM 資料庫認證失敗期間）
+
+- 7B 在 Balanced 舊預設 0.70 下 238 s 就緒，**實際佔 82 GB**（`nvidia-smi` per-process 83,937 MiB）。
+- 0.5B 在 0.15 下佔 18 GB → 證實「記憶體使用比例 = 啟動時整段預先保留」。
+- 全程 `gateway=failed`：LiteLLM 因 Postgres 密碼不一致（`P1000`）持續重啟。以 `ALTER USER` 改回 `.env` 的密碼後恢復。
+  根因（密碼為何不一致）已無法追查 → 新增 `init-env.sh` 防呆、LiteLLM healthcheck、`scripts/doctor.sh`。
+- `oom` 階段因前一階段服務殘留，拿到「其他程式佔用」樣本：
+  `Free memory on device cuda:0 (9.2/121.69 GiB) on startup is less than desired GPU memory utilization (0.1, 12.17 GiB)`
+  → 新錯誤碼 `GPU_MEMORY_IN_USE`。
+
+### 第 2 輪：2026-10-06 09:45（修正後）
+
+| 項目 | 結果 |
+|---|---|
+| 7B Balanced（新預設 0.25 / 32K） | ✅ 217 s 就緒；權重 14.29 GiB、載入 97 s、CUDA graph 41 s + 39 s、engine init 95 s |
+| 實際佔用 | 28.7 GB（≈ 0.25 × 121.69 = 30.4 GB 預估，誤差 < 6 %） |
+| vLLM KV cache | 12.87 GiB → **241,040 tokens，32K 上下文可同時 7.36 個請求** |
+| 生成速度 | 單一請求約 13 tok/s（含 prefill + Gateway） |
+| 7B + 0.5B 同時運行 | ✅ 兩者都可回應、Gateway 同步；合計 46 GB |
+| 7B @ 0.10 / 8K | ✅ 192 s 後 `ERROR/OOM`：`Available KV cache memory: -6.06 GiB` → `No available memory for the cache blocks` |
+| reboot-prep | ⚠ 0.5B 與 7B **同時啟動**時 0.5B 在 86 s 失敗；7B 正常 → 改為一次只載入一個模型 |
+
+### 由第 2 輪得到的修改
+
+- **記憶體比例依模型計算**（`configs/presets.yaml` 的 `fit`）：7B Balanced 0.25 實測合適，餘裕倍數維持（均衡 1.5 / 省記憶體 1.2 / 高吞吐 3.0）。
+- **一次只載入一個模型**：vLLM 以啟動當下的可用記憶體決定保留量，同時載入會互相看到過時的數字。第二個服務會顯示「排隊中」，等前一個載入完成（不等 Gateway 註冊）。
+- **啟動前阻擋**：比例連權重都放不下時（如 7B @ 0.10），`WEIGHTS_EXCEED_BUDGET` 直接擋下並建議最小比例（7B 約 20 %），不必等 3 分鐘才失敗。在載入時量化（指定與模型檔不同的 quantization）時不擋。
+- **OOM 建議**：log 出現負的 KV cache 時，建議「提高記憶體使用比例到 X %」，不再建議降低對話長度。
+- **錯誤規則**：`error-patterns.yaml` 支援 `require`（只有真正的錯誤行才算命中與當作證據）與具名群組（擷取 `kv_gib`、`weights_gib` 等數字）。
+
 ### 待補測
 
+- [ ] reboot-verify（開機自動啟動，含新的「一次只載入一個」）
 - [ ] 量化模型（FP8 / NVFP4 / AWQ）

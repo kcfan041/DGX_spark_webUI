@@ -20,8 +20,9 @@ export function LoadingProgress({ instance, slowAfterSeconds, onCancel, onViewLo
   const now = useNow(true);
   const logs = useInstanceLogs(instance.id, 20, 3000);
   const waited = secondsSince(instance.phase_started_at, now);
+  const queued = instance.phase === "queued";
   const active = Math.max(0, PHASES.indexOf(instance.phase ?? "preparing"));
-  const latest = logs.data?.lines.at(-1)?.text;
+  const latest = queued ? undefined : logs.data?.lines.at(-1)?.text;
 
   return (
     <Card withBorder data-testid="loading-progress">
@@ -29,19 +30,23 @@ export function LoadingProgress({ instance, slowAfterSeconds, onCancel, onViewLo
         <Group justify="space-between">
           <Group gap="xs">
             <Loader size="sm" />
-            <Text fw={600}>{t("detail.loadingTitle")}</Text>
+            <Text fw={600}>{t(queued ? "detail.queuedTitle" : "detail.loadingTitle")}</Text>
           </Group>
           <Text fw={500}>{t("detail.waited", { time: formatDuration(waited, i18n.language) })}</Text>
         </Group>
-        <Stepper active={active} size="xs" allowNextStepsSelect={false}>
+        <Stepper active={queued ? 0 : active} size="xs" allowNextStepsSelect={false}>
           {PHASES.map((p) => (
-            <Stepper.Step key={p} label={t(`phase.${p}`)} loading={PHASES[active] === p && p !== "ready"} />
+            <Stepper.Step
+              key={p}
+              label={t(`phase.${p}`)}
+              loading={!queued && PHASES[active] === p && p !== "ready"}
+            />
           ))}
         </Stepper>
         <Text size="sm" c="dimmed">
-          {t("detail.loadingHint")}
+          {t(queued ? "detail.queuedHint" : "detail.loadingHint")}
         </Text>
-        {waited > slowAfterSeconds && <Alert color="yellow">{t("detail.slowHint")}</Alert>}
+        {!queued && waited > slowAfterSeconds && <Alert color="yellow">{t("detail.slowHint")}</Alert>}
         {latest && (
           <Stack gap={2}>
             <Text size="xs" c="dimmed">
