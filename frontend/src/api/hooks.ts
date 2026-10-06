@@ -6,6 +6,8 @@ import type {
   ConnectionInfo,
   AutostartProgress,
   CreatedApiKey,
+  DownloadInfo,
+  DownloadPreview,
   GatewayModel,
   GatewayStatus,
   Instance,
@@ -244,6 +246,76 @@ export function useCleanupGatewayModel() {
   return useMutation({
     mutationFn: (id: string) => api<void>(`/gateway/models/${encodeURIComponent(id)}/cleanup`, { method: "POST" }),
     onSuccess: invalidate,
+  });
+}
+
+export const useDownloads = () =>
+  useQuery({
+    queryKey: ["downloads"],
+    queryFn: () => api<DownloadInfo[]>("/downloads"),
+    refetchInterval: (q) =>
+      (q.state.data ?? []).some((d) => d.status === "queued" || d.status === "downloading") ? 1500 : 10000,
+  });
+
+function useInvalidateDownloads() {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: ["downloads"] });
+    void qc.invalidateQueries({ queryKey: ["models"] });
+    void qc.invalidateQueries({ queryKey: ["model-sources"] });
+  };
+}
+
+export function useDownloadPreview() {
+  return useMutation({
+    mutationFn: (body: { repo_id: string; target_dir?: string | null }) =>
+      api<DownloadPreview>("/downloads/preview", { method: "POST", body: JSON.stringify(body) }),
+  });
+}
+
+export function useCreateDownload() {
+  const invalidate = useInvalidateDownloads();
+  return useMutation({
+    mutationFn: (body: { repo_id: string; target_dir?: string | null }) =>
+      api<DownloadInfo>("/downloads", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDownloadAction() {
+  const invalidate = useInvalidateDownloads();
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "cancel" | "retry" | "delete" }): Promise<void> => {
+      if (action === "delete") await api<void>(`/downloads/${id}`, { method: "DELETE" });
+      else await api<DownloadInfo>(`/downloads/${id}/${action}`, { method: "POST" });
+    },
+    onSettled: invalidate,
+  });
+}
+
+export function useDeleteModel() {
+  const invalidate = useInvalidateDownloads();
+  return useMutation({
+    mutationFn: (modelId: string) => api<void>(`/models/${encodeURIComponent(modelId)}`, { method: "DELETE" }),
+    onSuccess: invalidate,
+  });
+}
+
+export const useHfToken = () =>
+  useQuery({
+    queryKey: ["settings", "hf-token"],
+    queryFn: () => api<{ configured: boolean; source: string | null }>("/settings/hf-token"),
+  });
+
+export function useSetHfToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string | null) =>
+      api<{ configured: boolean; source: string | null }>("/settings/hf-token", {
+        method: "PUT",
+        body: JSON.stringify({ token }),
+      }),
+    onSuccess: (d) => qc.setQueryData(["settings", "hf-token"], d),
   });
 }
 

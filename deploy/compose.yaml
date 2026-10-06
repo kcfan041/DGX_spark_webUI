@@ -32,9 +32,14 @@ services:
       DGXSP_PUBLIC_API_BASE: ${PUBLIC_API_BASE:-}
       DGXSP_GATEWAY_PORT: ${GATEWAY_PORT:-4000}
       DGXSP_GATEWAY_BIND: ${GATEWAY_BIND:-0.0.0.0}
+      DGXSP_MODEL_OWNER_UID: ${MODEL_OWNER_UID:-1000}
+      DGXSP_MODEL_OWNER_GID: ${MODEL_OWNER_GID:-1000}
+      DGXSP_HF_TOKEN: ${HF_TOKEN:-}
+      DGXSP_HF_ENDPOINT: ${HF_ENDPOINT:-}
+      HF_HUB_DISABLE_SYMLINKS_WARNING: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${MODEL_ROOT}:/models:ro
+      - ${MODEL_ROOT}:/models
       - ${HF_CACHE_DIR:-./.empty-hf-cache}:/hf-cache:ro
       - ../configs:/app/configs:ro
       - backend-data:/data

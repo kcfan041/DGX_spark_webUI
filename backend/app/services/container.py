@@ -9,12 +9,16 @@ from app.adapters.litellm_client import LiteLLMClient
 from app.adapters.metrics import MetricsProvider
 from app.adapters.model_sources import HFCacheSource, LocalDirSource, ModelCatalog, ModelSource
 from app.core.settings import Settings
+from app.db.settings_store import get_setting
 from app.profiles import RuntimeProfile, load_profile
+from app.services.downloads import DownloadManager, Fetcher, HFHubClient
 from app.services.error_classifier import ErrorClassifier
 from app.services.instance_manager import InstanceManager
 from app.services.planner import Planner
 from app.services.presets import PresetResolver
 from app.services.probe import VllmProbe
+
+HF_TOKEN_KEY = "hf_token"
 
 
 @dataclass
@@ -30,8 +34,10 @@ class Services:
     classifier: ErrorClassifier
     probe: VllmProbe
     manager: InstanceManager
+    downloads: DownloadManager
 
     async def aclose(self) -> None:
+        await self.downloads.shutdown()
         await self.manager.shutdown()
         await self.probe.aclose()
         await self.litellm.aclose()
@@ -55,6 +61,24 @@ def build_services(settings: Settings, engine: Engine) -> Services:
     planner = Planner(profile, presets)
     classifier = ErrorClassifier.from_file(settings.config_dir / "error-patterns.yaml")
     probe = VllmProbe()
+
+    def hf_token() -> str | None:
+        return get_setting(engine, HF_TOKEN_KEY) or settings.hf_token.get_secret_value() or None
+
+    owner = (
+        (settings.model_owner_uid, settings.model_owner_gid)
+        if settings.model_owner_uid is not None and settings.model_owner_gid is not None
+        else None
+    )
+    downloads = DownloadManager(
+        engine=engine,
+        model_root=settings.model_root,
+        hub=HFHubClient(settings.hf_endpoint),
+        fetcher=Fetcher(endpoint=settings.hf_endpoint),
+        token=hf_token,
+        on_complete=catalog.rescan,
+        owner=owner,
+    )
     manager = InstanceManager(
         engine=engine,
         profile=profile,
@@ -79,6 +103,7 @@ def build_services(settings: Settings, engine: Engine) -> Services:
         classifier=classifier,
         probe=probe,
         manager=manager,
+        downloads=downloads,
     )
 
 

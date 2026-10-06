@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useModelSources, useSystemInfo } from "@/api/hooks";
 import { QueryState } from "@/components/QueryState";
 import { ApiBaseCard } from "@/components/settings/ApiBaseCard";
+import { HfTokenCard } from "@/components/settings/HfTokenCard";
 import { setLanguage, type Language } from "@/i18n";
 
 export function SettingsPage() {
@@ -56,6 +57,8 @@ export function SettingsPage() {
       </Card>
 
       <ApiBaseCard />
+
+      <HfTokenCard />
 
       <Card withBorder>
         <Text fw={600} mb="sm">

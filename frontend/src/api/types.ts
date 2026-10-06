@@ -277,6 +277,43 @@ export interface GatewayStatus {
   error?: string;
 }
 
+export interface DownloadPreview {
+  repo_id: string;
+  target_dir: string;
+  exists: boolean;
+  files: number;
+  size_bytes: number;
+  disk_free_bytes: number | null;
+  has_config: boolean;
+  has_weights: boolean;
+  architecture: string | null;
+  quantization: string | null;
+  max_context: number | null;
+  gated: boolean;
+  warnings: string[];
+  blocking: boolean;
+}
+
+export type DownloadStatus = "queued" | "downloading" | "completed" | "failed" | "cancelled";
+
+export interface DownloadInfo {
+  id: string;
+  repo_id: string;
+  revision: string | null;
+  target_dir: string;
+  status: DownloadStatus;
+  bytes_total: number | null;
+  bytes_done: number;
+  files_total: number | null;
+  progress: number | null;
+  speed_bps: number | null;
+  error: { code: string; message?: string } | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  model_id: string | null;
+}
+
 export interface AutostartProgress {
   state: "idle" | "running" | "done" | "cancelled";
   queue: string[];

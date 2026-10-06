@@ -29,7 +29,13 @@ rand() { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 WEB_PORT="$(grep '^WEB_PORT=' "$ROOT/deploy/.env.example" | cut -d= -f2)"
 
+MODEL_ROOT_DEFAULT="$(grep '^MODEL_ROOT=' "$ROOT/deploy/.env.example" | cut -d= -f2)"
+OWNER_UID="$(stat -c '%u' "$MODEL_ROOT_DEFAULT" 2>/dev/null || id -u)"
+OWNER_GID="$(stat -c '%g' "$MODEL_ROOT_DEFAULT" 2>/dev/null || id -g)"
+
 sed -e "s|^DGXSP_PROFILE=.*|DGXSP_PROFILE=$PROFILE|" \
+    -e "s|^MODEL_OWNER_UID=.*|MODEL_OWNER_UID=$OWNER_UID|" \
+    -e "s|^MODEL_OWNER_GID=.*|MODEL_OWNER_GID=$OWNER_GID|" \
     -e "s|^DGXSP_ADMIN_TOKEN=.*|DGXSP_ADMIN_TOKEN=$(rand)|" \
     -e "s|^LITELLM_MASTER_KEY=.*|LITELLM_MASTER_KEY=sk-$(rand)|" \
     -e "s|^LITELLM_SALT_KEY=.*|LITELLM_SALT_KEY=sk-$(rand)|" \

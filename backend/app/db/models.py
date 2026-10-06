@@ -41,6 +41,22 @@ class Instance(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow)
 
 
+class Download(SQLModel, table=True):
+    id: str = Field(default_factory=new_id, primary_key=True)
+    repo_id: str = Field(index=True)
+    revision: str | None = None
+    target_dir: str
+    allow_patterns: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    status: str = "queued"
+    bytes_total: int | None = None
+    bytes_done: int = 0
+    files_total: int | None = None
+    error: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=utcnow)
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
 class SystemSetting(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: str

@@ -6,7 +6,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import auth, gateway, instances, models, system
+from app.api import auth, downloads, gateway, instances, models, system
 from app.api import settings as settings_api
 from app.core.security import build_auth_provider
 from app.core.settings import Settings, get_settings
@@ -33,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.warning("DGXSP_ADMIN_TOKEN is empty: all authenticated endpoints will reject requests")
         if settings.manager_enabled:
             await services.manager.startup()
+            await services.downloads.startup()
         log.info("started profile=%s image=%s", settings.profile, services.profile.vllm.image)
         try:
             yield
@@ -56,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api = APIRouter(prefix="/api/v1")
     api.include_router(auth.router)
     api.include_router(system.router)
+    api.include_router(downloads.router)
     api.include_router(models.router)
     api.include_router(instances.router)
     api.include_router(gateway.router)

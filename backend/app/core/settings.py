@@ -28,10 +28,17 @@ class Settings(BaseSettings):
     gateway_port: int = 4000
     gateway_bind: str = "0.0.0.0"
 
+    hf_token: SecretStr = Field(default=SecretStr(""))
+    hf_endpoint: str | None = None
+    model_owner_uid: int | None = None
+    model_owner_gid: int | None = None
+
     cors_origins: list[str] = Field(default_factory=list)
     manager_enabled: bool = True
 
-    @field_validator("hf_cache_dir", "host_hf_cache_dir", mode="before")
+    @field_validator(
+        "hf_cache_dir", "host_hf_cache_dir", "hf_endpoint", "model_owner_uid", "model_owner_gid", mode="before"
+    )
     @classmethod
     def _empty_is_none(cls, v: object) -> object:
         return None if v == "" else v

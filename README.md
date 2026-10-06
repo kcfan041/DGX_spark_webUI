@@ -59,8 +59,13 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] P1：模型服務生命週期（Backend）：建立 / 啟動 / 停止 / 重啟 / 取消 / 刪除、健康檢查、LiteLLM 自動註冊、錯誤分類、對帳、開機自動啟動
 - [x] P1 Spark 實機驗證（2026-10-05，`P1 CHECK PASS`）
 - [x] P2：Frontend 主流程（建立 Wizard、模型服務詳細頁、錯誤卡片與建議、設定編輯、Logs 即時串流、事件、診斷）
-- [ ] P2 Spark 實機 UI 驗證
+- [x] P2 Spark 實機 UI 驗證
 - [x] P3：Gateway 頁（API Key 建立 / 只顯示一次 / 撤銷、已發布模型同步與清除、連線資訊）
+- [x] 驗證 2.0：7B、同時運行、真實 OOM、重開機自動啟動（docs/spark-validation.md）
+- [x] 下載模型：網頁輸入 Hugging Face repo ID → 預檢（大小、磁碟、授權）→ 背景下載（進度、取消、重試）→ 自動出現在模型清單；刪除模型檔案
+- [ ] 量化模型實測
+- [ ] 小功能：GPU 指標、模型詳細、外部服務詳情、Logs 加 Gateway / Backend
+- [ ] 英文翻譯
 
 ## mock-vllm 失敗模擬（dev profile）
 

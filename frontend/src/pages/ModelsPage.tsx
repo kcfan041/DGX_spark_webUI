@@ -1,10 +1,16 @@
-import { Alert, Badge, Button, Group, Stack, Table, Text, TextInput, Title, Tooltip } from "@mantine/core";
-import { IconAlertTriangle, IconRefresh, IconSearch } from "@tabler/icons-react";
+import { ActionIcon, Alert, Badge, Button, Group, Menu, Stack, Table, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { modals } from "@mantine/modals";
+import { notifications } from "@mantine/notifications";
+import { IconAlertTriangle, IconDots, IconDownload, IconRefresh, IconSearch, IconTrash } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { useModelSources, useModels, useRescanModels } from "@/api/hooks";
+import { useDeleteModel, useModelSources, useModels, useRescanModels } from "@/api/hooks";
+import type { ModelMeta } from "@/api/types";
 import { QueryState } from "@/components/QueryState";
+import { DownloadModal } from "@/components/models/DownloadModal";
+import { DownloadsPanel } from "@/components/models/DownloadsPanel";
+import { useApiErrorNotifier } from "@/hooks/useApiError";
 import { formatBytes, formatContext } from "@/lib/format";
 
 export function ModelsPage() {
@@ -12,13 +18,31 @@ export function ModelsPage() {
   const models = useModels();
   const sources = useModelSources();
   const rescan = useRescanModels();
+  const del = useDeleteModel();
+  const notifyError = useApiErrorNotifier();
   const [q, setQ] = useState("");
+  const [downloading, setDownloading] = useState(false);
 
   const rows = useMemo(
     () => (models.data ?? []).filter((m) => m.name.toLowerCase().includes(q.trim().toLowerCase())),
     [models.data, q],
   );
   const rootPath = sources.data?.find((s) => s.type === "local_dir")?.path ?? "MODEL_ROOT";
+
+  const confirmDelete = (m: ModelMeta) =>
+    modals.openConfirmModal({
+      title: t("models.deleteTitle"),
+      children: (
+        <Text size="sm">{t("models.deleteBody", { name: m.name, size: formatBytes(m.size_bytes), path: m.host_path })}</Text>
+      ),
+      labels: { confirm: t("common.delete"), cancel: t("common.cancel") },
+      confirmProps: { color: "red" },
+      onConfirm: () =>
+        del.mutate(m.id, {
+          onSuccess: () => notifications.show({ color: "teal", message: t("models.deleted", { name: m.name }) }),
+          onError: notifyError,
+        }),
+    });
 
   return (
     <Stack>
@@ -34,12 +58,27 @@ export function ModelsPage() {
           <Button variant="default" leftSection={<IconRefresh size={16} />} loading={rescan.isPending} onClick={() => rescan.mutate()}>
             {t("models.rescan")}
           </Button>
+          <Button leftSection={<IconDownload size={16} />} onClick={() => setDownloading(true)} data-testid="open-download">
+            {t("downloads.open")}
+          </Button>
         </Group>
       </Group>
 
+      <DownloadsPanel />
+
       <QueryState isLoading={models.isLoading} error={models.error} onRetry={() => models.refetch()}>
         {rows.length === 0 && !q ? (
-          <Alert title={t("models.empty")}>{t("models.emptyHint", { path: rootPath })}</Alert>
+          <Alert title={t("models.empty")}>
+            <Stack gap="xs">
+              <Text size="sm">{t("models.emptyDownload")}</Text>
+              <Button size="xs" w="fit-content" leftSection={<IconDownload size={14} />} onClick={() => setDownloading(true)}>
+                {t("downloads.open")}
+              </Button>
+              <Text size="xs" c="dimmed">
+                {t("models.emptyHint", { path: rootPath })}
+              </Text>
+            </Stack>
+          </Alert>
         ) : (
           <Table striped highlightOnHover>
             <Table.Thead>
@@ -73,7 +112,7 @@ export function ModelsPage() {
                   <Table.Td>{m.dtype ?? "—"}</Table.Td>
                   <Table.Td>{m.max_context ? formatContext(m.max_context) : t("common.unknown")}</Table.Td>
                   <Table.Td>
-                      {m.in_use_by.length > 0 ? (
+                    {m.in_use_by.length > 0 ? (
                       <Badge
                         color="green"
                         variant="light"
@@ -90,9 +129,35 @@ export function ModelsPage() {
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Button size="xs" component={Link} to={`/services/new?model=${encodeURIComponent(m.id)}`}>
-                      {t("models.createService")}
-                    </Button>
+                    <Group gap={4} wrap="nowrap">
+                      <Button size="xs" component={Link} to={`/services/new?model=${encodeURIComponent(m.id)}`}>
+                        {t("models.createService")}
+                      </Button>
+                      <Menu position="bottom-end" withinPortal>
+                        <Menu.Target>
+                          <ActionIcon variant="subtle" color="gray" aria-label="more">
+                            <IconDots size={16} />
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item
+                            color="red"
+                            leftSection={<IconTrash size={14} />}
+                            disabled={m.in_use_by.length > 0 || m.source !== "local"}
+                            title={
+                              m.in_use_by.length > 0
+                                ? t("models.deleteInUse")
+                                : m.source !== "local"
+                                  ? t("models.deleteNotLocal")
+                                  : undefined
+                            }
+                            onClick={() => confirmDelete(m)}
+                          >
+                            {t("models.delete")}
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -100,6 +165,7 @@ export function ModelsPage() {
           </Table>
         )}
       </QueryState>
+      <DownloadModal opened={downloading} onClose={() => setDownloading(false)} />
     </Stack>
   );
 }
