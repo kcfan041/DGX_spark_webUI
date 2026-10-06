@@ -28,7 +28,7 @@ data/
 *.db
 *.sqlite
 smoke/results/
-models/
+/models/
 
 # OS / editor
 .DS_Store
