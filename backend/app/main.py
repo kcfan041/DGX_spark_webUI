@@ -8,17 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.api import auth, downloads, gateway, instances, logs, models, system
 from app.api import settings as settings_api
+from app.core.logging import configure_logging
 from app.core.security import build_auth_provider
 from app.core.settings import Settings, get_settings
 from app.db.session import build_engine, init_db
 from app.services.container import build_services
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("dgxsp")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_logging(settings.verbose_access_log)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:

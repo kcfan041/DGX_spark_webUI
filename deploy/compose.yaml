@@ -37,6 +37,7 @@ services:
       DGXSP_HF_TOKEN: ${HF_TOKEN:-}
       DGXSP_HF_ENDPOINT: ${HF_ENDPOINT:-}
       HF_HUB_DISABLE_SYMLINKS_WARNING: "1"
+      DGXSP_VERBOSE_ACCESS_LOG: ${VERBOSE_ACCESS_LOG:-0}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${MODEL_ROOT}:/models

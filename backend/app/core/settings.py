@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     model_owner_uid: int | None = None
     model_owner_gid: int | None = None
 
+    verbose_access_log: bool = False
+
     cors_origins: list[str] = Field(default_factory=list)
     manager_enabled: bool = True
 
