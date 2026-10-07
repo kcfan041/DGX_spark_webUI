@@ -1,3 +1,5 @@
+import i18n from "@/i18n";
+
 export function formatBytes(bytes: number | null | undefined, digits = 1): string {
   if (bytes === null || bytes === undefined || Number.isNaN(bytes)) return "—";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -43,5 +45,5 @@ export function secondsSince(iso: string | null | undefined, now = Date.now()): 
 export function formatTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`);
-  return Number.isNaN(t) ? iso : new Date(t).toLocaleString();
+  return Number.isNaN(t) ? iso : new Date(t).toLocaleString(i18n.language === "en" ? "en-US" : "zh-TW");
 }

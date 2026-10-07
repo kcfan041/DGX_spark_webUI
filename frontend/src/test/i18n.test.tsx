@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import i18n from "@/i18n";
 import en from "@/i18n/locales/en.json";
 import zhTW from "@/i18n/locales/zh-TW.json";
+import { formatTime } from "@/lib/format";
 import { UsagePage } from "@/pages/UsagePage";
 import { mockFetch, renderRoute } from "./utils";
 
@@ -43,6 +44,15 @@ describe("English UI", () => {
   afterEach(async () => {
     vi.unstubAllGlobals();
     await i18n.changeLanguage("zh-TW");
+  });
+
+  it("formats times in the UI language", async () => {
+    const iso = "2026-10-07T13:05:00Z";
+    await i18n.changeLanguage("en");
+    expect(formatTime(iso)).toMatch(/PM|AM/);
+    expect(formatTime(iso)).not.toMatch(/[上下]午/);
+    await i18n.changeLanguage("zh-TW");
+    expect(formatTime(iso)).toMatch(/[上下]午/);
   });
 
   it("renders a page in English", async () => {
