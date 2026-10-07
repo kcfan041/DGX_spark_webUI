@@ -56,6 +56,48 @@ export interface ExternalService {
   hint_key: string;
 }
 
+export type SettingSource = "web" | "deploy" | "default";
+
+export interface SettingValue<T> {
+  value: T;
+  source: SettingSource;
+  default: T;
+}
+
+export interface AdvancedSettings {
+  verbose_access_log: SettingValue<boolean>;
+  hf_endpoint: SettingValue<string | null>;
+  health_timeout_min: SettingValue<number>;
+  timeout_range: [number, number];
+  deploy: {
+    profile: string;
+    model_root: string;
+    model_owner: string | null;
+    hf_cache_dir: string | null;
+    gateway_port: number;
+    gateway_bind: string;
+    gateway_local_only: boolean;
+    vllm_image: string;
+  };
+}
+
+export type AdvancedField = "verbose_access_log" | "hf_endpoint" | "health_timeout_min";
+
+export interface AdvancedUpdate {
+  verbose_access_log?: boolean;
+  hf_endpoint?: string | null;
+  health_timeout_min?: number;
+  reset?: AdvancedField[];
+}
+
+export interface EndpointTestResult {
+  ok: boolean;
+  ms?: number;
+  reason?: "timeout" | "network" | "http" | "not_hf";
+  status?: number;
+  url: string;
+}
+
 export interface InstanceMetrics {
   gpu_bytes: number | null;
   reserved_bytes: number | null;

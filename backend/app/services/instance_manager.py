@@ -93,9 +93,11 @@ class InstanceManager:
         poll_interval: float = 3.0,
         reconcile_interval: float = 10.0,
         boot_time: Callable[[], str | None] = read_boot_time,
+        health_timeout_s: Callable[[], int] | None = None,
     ) -> None:
         self.engine = engine
         self.profile = profile
+        self.health_timeout_s: Callable[[], int] = health_timeout_s or (lambda: profile.timeouts.health_s)
         self.runtime = runtime
         self.gateway = gateway
         self.catalog = catalog
@@ -405,7 +407,8 @@ class InstanceManager:
 
     async def _wait_loaded(self, instance_id: str, name: str) -> bool:
         inst = self.get(instance_id)
-        deadline = time.monotonic() + self.profile.timeouts.health_s
+        timeout_s = self.health_timeout_s()
+        deadline = time.monotonic() + timeout_s
         base = self.internal_base(inst)
         while True:
             st = await asyncio.to_thread(self.runtime.state, name)
@@ -421,7 +424,9 @@ class InstanceManager:
                 logs = await asyncio.to_thread(self.runtime.logs, name, 300)
                 await asyncio.to_thread(self.runtime.stop, name, self.profile.timeouts.stop_s)
                 err = make_error(
-                    ErrorCode.HEALTH_TIMEOUT, evidence=logs[-5:], params={"timeout_s": self.profile.timeouts.health_s}
+                    ErrorCode.HEALTH_TIMEOUT,
+                    evidence=logs[-5:],
+                    params={"timeout_s": timeout_s, "timeout_min": round(timeout_s / 60)},
                 )
                 self._set_error(instance_id, err)
                 return False

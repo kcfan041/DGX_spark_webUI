@@ -17,6 +17,7 @@ from app.services.instance_manager import InstanceManager
 from app.services.planner import Planner
 from app.services.presets import PresetResolver
 from app.services.probe import VllmProbe
+from app.services.runtime_settings import RuntimeSettings
 
 HF_TOKEN_KEY = "hf_token"
 
@@ -35,6 +36,8 @@ class Services:
     probe: VllmProbe
     manager: InstanceManager
     downloads: DownloadManager
+    runtime: RuntimeSettings
+    hub: HFHubClient
 
     async def aclose(self) -> None:
         await self.downloads.shutdown()
@@ -70,11 +73,13 @@ def build_services(settings: Settings, engine: Engine) -> Services:
         if settings.model_owner_uid is not None and settings.model_owner_gid is not None
         else None
     )
+    runtime_settings = RuntimeSettings(engine, settings, profile)
+    hub = HFHubClient(runtime_settings.hf_endpoint_value)
     downloads = DownloadManager(
         engine=engine,
         model_root=settings.model_root,
-        hub=HFHubClient(settings.hf_endpoint),
-        fetcher=Fetcher(endpoint=settings.hf_endpoint),
+        hub=hub,
+        fetcher=Fetcher(endpoint_source=runtime_settings.hf_endpoint_value),
         token=hf_token,
         on_complete=catalog.rescan,
         owner=owner,
@@ -90,6 +95,7 @@ def build_services(settings: Settings, engine: Engine) -> Services:
         probe=probe,
         memory=metrics.memory,
         container_prefix=settings.container_prefix,
+        health_timeout_s=runtime_settings.health_timeout_s,
     )
     return Services(
         settings=settings,
@@ -104,6 +110,8 @@ def build_services(settings: Settings, engine: Engine) -> Services:
         probe=probe,
         manager=manager,
         downloads=downloads,
+        runtime=runtime_settings,
+        hub=hub,
     )
 
 

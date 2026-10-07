@@ -574,7 +574,42 @@
     "image": "vLLM image",
     "sources": "模型來源",
     "about": "關於",
-    "version": "平台版本"
+    "version": "平台版本",
+    "runtimeHelp": "這些是部署時決定的設定，只能在 Spark 上修改 deploy/.env 後執行 docker compose up -d 才會改變。",
+    "modelRoot": "模型目錄",
+    "owner": "（檔案擁有者 {{owner}}）",
+    "gateway": "Gateway",
+    "localOnly": "只開放本機",
+    "lanOpen": "開放區網連線"
+  },
+  "advanced": {
+    "title": "進階設定",
+    "intro": "這些設定修改後立即生效，不需要重新啟動平台。",
+    "reset": "改回預設",
+    "resetDone": "已改回預設",
+    "saved": "已儲存",
+    "on": "開啟",
+    "off": "關閉",
+    "minutes": "分鐘",
+    "source": { "web": "網頁設定", "deploy": "部署設定", "default": "預設" },
+    "timeout": "模型載入逾時",
+    "timeoutHelp": "模型服務啟動後，超過這個時間還沒就緒就判定為失敗。大模型第一次載入可能需要很久，可設 {{lo}}–{{hi}} 分鐘（預設 {{def}} 分鐘）。下一次啟動時生效。",
+    "timeoutRange": "請輸入 {{lo}}–{{hi}} 之間的整數",
+    "endpoint": "Hugging Face 鏡像站",
+    "endpointHelp": "空白代表直接連 huggingface.co。如果 Spark 無法直接連到 Hugging Face，可以填鏡像站網址（例如 https://hf-mirror.com）。下一次下載時生效。",
+    "endpointInvalid": "格式不正確，請輸入 http:// 或 https:// 開頭的網址",
+    "test": "測試連線",
+    "testOk": "Spark 可以連到 {{url}}（{{ms}} ms）",
+    "testFail": {
+      "timeout": "Spark 連到 {{url}} 逾時",
+      "network": "Spark 無法連到 {{url}}（位址錯誤或網路不通）",
+      "http": "{{url}} 回應異常（HTTP {{status}}）",
+      "not_hf": "{{url}} 有回應，但看起來不是 Hugging Face 相容的網址"
+    },
+    "verbose": "記錄所有 API 請求（除錯用）",
+    "verboseHelp": "開啟後，Logs 頁的「平台後端」會出現網頁每幾秒的狀態查詢，log 會變多。一般請保持關閉。",
+    "verboseOn": "已開啟完整記錄",
+    "verboseOff": "已關閉完整記錄"
   },
   "errors": {
     "UNAUTHORIZED": "登入已失效，請重新登入",
@@ -627,7 +662,10 @@
       "description": "這個模型需要執行模型資料夾內附的程式碼才能載入。",
       "suggest": { "enable": "開啟「信任遠端程式碼」（請確認來源可信）" }
     },
-    "HEALTH_TIMEOUT": { "title": "啟動逾時", "description": "模型在預期時間內沒有完成載入。" },
+    "HEALTH_TIMEOUT": {
+      "title": "啟動逾時",
+      "description": "模型在 {{timeout_min}} 分鐘內沒有完成載入。大模型第一次載入可能較久，可以到「設定 → 進階設定」延長模型載入逾時後重試。"
+    },
     "CRASHED": { "title": "模型服務意外停止", "description": "模型服務在啟動或運行中結束了，請查看 Log 了解原因。" },
     "PORT_CONFLICT": {
       "title": "對外直連 port 已被占用",

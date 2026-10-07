@@ -8,7 +8,7 @@ import re
 import shutil
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -111,9 +111,46 @@ class HubClient(Protocol):
     def inspect(self, repo_id: str, revision: str | None, token: str | None) -> RepoInfo: ...
 
 
+EndpointSource = Callable[[], str | None]
+
+
+def _const(v: str | None) -> EndpointSource:
+    return lambda: v
+
+
 class HFHubClient:
-    def __init__(self, endpoint: str | None = None) -> None:
-        self.endpoint = endpoint
+    def __init__(self, endpoint: str | None | EndpointSource = None) -> None:
+        self._endpoint: EndpointSource = endpoint if callable(endpoint) else _const(endpoint)
+
+    @property
+    def endpoint(self) -> str | None:
+        return self._endpoint()
+
+    @staticmethod
+    def ping(endpoint: str | None, timeout: float = 8.0) -> dict[str, Any]:
+        """Check from this host that the hub (or a mirror) answers the model API."""
+        import time
+
+        import httpx
+
+        base = (endpoint or "https://huggingface.co").rstrip("/")
+        t0 = time.monotonic()
+        try:
+            r = httpx.get(f"{base}/api/models", params={"limit": 1}, timeout=timeout, follow_redirects=True)
+        except httpx.TimeoutException:
+            return {"ok": False, "reason": "timeout", "url": base}
+        except httpx.HTTPError:
+            return {"ok": False, "reason": "network", "url": base}
+        ms = int((time.monotonic() - t0) * 1000)
+        if r.status_code != 200:
+            return {"ok": False, "reason": "http", "status": r.status_code, "url": base}
+        try:
+            valid = isinstance(r.json(), list)
+        except ValueError:
+            valid = False
+        if not valid:
+            return {"ok": False, "reason": "not_hf", "url": base}
+        return {"ok": True, "ms": ms, "url": base}
 
     def inspect(self, repo_id: str, revision: str | None, token: str | None) -> RepoInfo:
         from huggingface_hub import HfApi, hf_hub_download
@@ -174,7 +211,11 @@ class Fetcher:
     """Runs the worker as a subprocess. Replaceable in tests."""
 
     python: str = sys.executable
-    endpoint: str | None = None
+    endpoint_source: EndpointSource = field(default_factory=lambda: _const(None))
+
+    @property
+    def endpoint(self) -> str | None:
+        return self.endpoint_source()
 
     async def start(
         self, repo_id: str, revision: str | None, local_dir: Path, patterns: list[str], token: str | None

@@ -29,6 +29,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = engine
         services = build_services(settings, engine)
         app.state.services = services
+        services.runtime.apply_logging()
         app.state.auth_provider = build_auth_provider()
         if not settings.admin_token.get_secret_value():
             log.warning("DGXSP_ADMIN_TOKEN is empty: all authenticated endpoints will reject requests")

@@ -1,7 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
+  AdvancedSettings,
+  AdvancedUpdate,
   ApiBaseInfo,
+  EndpointTestResult,
   ApiKeyInfo,
   ConnectionInfo,
   AutostartProgress,
@@ -348,6 +351,31 @@ export const useModelDetails = (id: string | null) =>
     queryFn: () => api<ModelDetails>(`/model-details/${encodeURIComponent(id ?? "")}`),
     enabled: Boolean(id),
   });
+
+export const useAdvancedSettings = () =>
+  useQuery({ queryKey: ["settings", "advanced"], queryFn: () => api<AdvancedSettings>("/settings/advanced") });
+
+export function useUpdateAdvanced() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AdvancedUpdate) =>
+      api<AdvancedSettings>("/settings/advanced", { method: "PUT", body: JSON.stringify(body) }),
+    onSuccess: (d) => {
+      qc.setQueryData(["settings", "advanced"], d);
+      void qc.invalidateQueries({ queryKey: ["system", "info"] });
+    },
+  });
+}
+
+export function useTestHfEndpoint() {
+  return useMutation({
+    mutationFn: (endpoint: string | null) =>
+      api<EndpointTestResult>("/settings/advanced/test-hf-endpoint", {
+        method: "POST",
+        body: JSON.stringify({ endpoint }),
+      }),
+  });
+}
 
 export function useCancelAutostart() {
   const qc = useQueryClient();

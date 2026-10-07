@@ -65,6 +65,12 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] 下載模型：網頁輸入 Hugging Face repo ID → 預檢（大小、磁碟、授權）→ 背景下載（進度、取消、重試）→ 自動出現在模型清單；刪除模型檔案
 - [ ] 量化模型實測
 - [x] 小功能：GPU 指標、模型詳細、外部服務詳情、Logs 加 Gateway / Backend
+- [x] 網頁進階設定：模型載入逾時（15–120 分鐘）、Hugging Face 鏡像站（含 Spark 端測試連線）、完整 API 記錄開關（皆即時生效）
+
+## 待辦
+
+- [ ] 量化模型實測（AWQ / FP8 / NVFP4）
+- [ ] 網頁變更管理者 Token（輸入舊 Token + 新 Token，存在平台資料庫並優先於 deploy/.env，改完需重新登入）
 - [ ] 英文翻譯
 
 ## mock-vllm 失敗模擬（dev profile）
