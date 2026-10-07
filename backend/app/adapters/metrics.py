@@ -1,6 +1,8 @@
 import logging
+import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -28,11 +30,37 @@ class DiskStats(BaseModel):
     free_bytes: int
 
 
+class GpuProcess(BaseModel):
+    pid: int
+    name: str
+    used_bytes: int | None
+    container_id: str | None = None
+
+
 class GpuStats(BaseModel):
     name: str | None = None
     driver: str | None = None
     utilization_pct: float | None = None
-    processes: list[dict[str, object]] = []
+    temperature_c: float | None = None
+    power_w: float | None = None
+    processes: list[GpuProcess] = []
+
+    @property
+    def process_bytes(self) -> int:
+        return sum(p.used_bytes or 0 for p in self.processes)
+
+
+CGROUP_ID_RE = re.compile(r"([0-9a-f]{64})")
+
+
+def container_of_pid(pid: int, proc_root: Path = Path("/proc")) -> str | None:
+    """Return the full docker container id owning a host pid (needs pid: host), or None."""
+    try:
+        text = (proc_root / str(pid) / "cgroup").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = CGROUP_ID_RE.search(text)
+    return m.group(1) if m else None
 
 
 def read_meminfo(path: Path = Path("/proc/meminfo")) -> MemoryStats | None:
@@ -85,24 +113,47 @@ def _num(v: str) -> float | None:
         return None
 
 
+def parse_gpu(gpu_rows: list[list[str]], app_rows: list[list[str]], proc_root: Path = Path("/proc")) -> GpuStats:
+    first = (gpu_rows[0] + ["", "", "", "", ""])[:5]
+    name, driver, util, temp, power = first
+    procs: list[GpuProcess] = []
+    for r in app_rows:
+        if len(r) < 3 or not r[0].isdigit():
+            continue
+        mib = _num(r[2])
+        pid = int(r[0])
+        procs.append(
+            GpuProcess(
+                pid=pid,
+                name=r[1],
+                used_bytes=int(mib * 2**20) if mib is not None else None,
+                container_id=container_of_pid(pid, proc_root),
+            )
+        )
+    return GpuStats(
+        name=name or None,
+        driver=driver or None,
+        utilization_pct=_num(util),
+        temperature_c=_num(temp),
+        power_w=_num(power),
+        processes=procs,
+    )
+
+
 def read_gpu() -> GpuStats | None:
-    rows = _nvsmi(["--query-gpu=name,driver_version,utilization.gpu"])
+    rows = _nvsmi(["--query-gpu=name,driver_version,utilization.gpu,temperature.gpu,power.draw"])
     if not rows:
         return None
-    name, driver, util = (rows[0] + [None, None, None])[:3]
-    procs = []
-    for r in _nvsmi(["--query-compute-apps=pid,process_name,used_memory"]) or []:
-        if len(r) >= 3:
-            mib = _num(r[2])
-            procs.append({"pid": r[0], "name": r[1], "used_bytes": int(mib * 2**20) if mib is not None else None})
-    return GpuStats(name=name, driver=driver, utilization_pct=_num(util or ""), processes=procs)
+    return parse_gpu(rows, _nvsmi(["--query-compute-apps=pid,process_name,used_memory"]) or [])
 
 
 class MetricsProvider:
-    def __init__(self, gpu_source: str, meminfo_path: Path, disk_path: Path) -> None:
+    def __init__(self, gpu_source: str, meminfo_path: Path, disk_path: Path, gpu_ttl: float = 2.0) -> None:
         self.gpu_source = gpu_source
         self.meminfo_path = meminfo_path
         self.disk_path = disk_path
+        self.gpu_ttl = gpu_ttl
+        self._gpu_cache: tuple[float, GpuStats | None] | None = None
 
     def memory(self) -> MemoryStats | None:
         return read_meminfo(self.meminfo_path)
@@ -111,4 +162,11 @@ class MetricsProvider:
         return read_disk(self.disk_path)
 
     def gpu(self) -> GpuStats | None:
-        return read_gpu() if self.gpu_source == "nvidia_smi" else None
+        if self.gpu_source != "nvidia_smi":
+            return None
+        now = time.monotonic()
+        if self._gpu_cache and now - self._gpu_cache[0] < self.gpu_ttl:
+            return self._gpu_cache[1]
+        stats = read_gpu()
+        self._gpu_cache = (now, stats)
+        return stats

@@ -64,7 +64,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] 驗證 2.0：7B、同時運行、真實 OOM、重開機自動啟動（docs/spark-validation.md）
 - [x] 下載模型：網頁輸入 Hugging Face repo ID → 預檢（大小、磁碟、授權）→ 背景下載（進度、取消、重試）→ 自動出現在模型清單；刪除模型檔案
 - [ ] 量化模型實測
-- [ ] 小功能：GPU 指標、模型詳細、外部服務詳情、Logs 加 Gateway / Backend
+- [x] 小功能：GPU 指標、模型詳細、外部服務詳情、Logs 加 Gateway / Backend
 - [ ] 英文翻譯
 
 ## mock-vllm 失敗模擬（dev profile）

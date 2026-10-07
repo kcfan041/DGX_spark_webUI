@@ -171,7 +171,10 @@
     "howToConnect": "如何連線",
     "apiBase": "對外 API 位址",
     "needKey": "需要 API Key？前往 Gateway 建立",
-    "externalServices": "偵測到 {{count}} 個非本平台管理的模型服務，它們無法從這裡停止。",
+    "externalServices": "偵測到 {{count}} 個非本平台管理的服務，它們無法從這裡停止。",
+    "externalServicesMem": "偵測到 {{count}} 個非本平台管理的服務，約使用 {{size}} 記憶體，它們無法從這裡停止。",
+    "externalDetails": "查看詳細",
+    "gpuProcMem": "GPU 程式合計使用 {{size}}",
     "autostartRunning": "正在依序啟動開機自動啟動的模型服務（{{done}}/{{total}}）",
     "autostartCancel": "取消剩餘的自動啟動",
     "autostartFailed": "開機自動啟動：{{count}} 個未成功"
@@ -411,6 +414,7 @@
     "gatewayNone": "模型服務未運行，未發布到 Gateway",
     "resources": "資源",
     "memoryQuota": "記憶體配額 {{ratio}}%（≈ {{size}}，估算）",
+    "gpuUsed": "目前實際使用 {{size}}（nvidia-smi）",
     "currentSettings": "目前設定",
     "loadingTitle": "正在載入模型…",
     "queuedTitle": "排隊中：等待其他模型服務載入完成",
@@ -478,9 +482,41 @@
     "errorsOnly": "只看錯誤",
     "download": "下載",
     "empty": "沒有 Log",
-    "noSource": "請選擇一個模型服務",
+    "noSource": "請選擇要查看的來源",
     "explain": "這表示：{{title}}",
-    "streamEnded": "Log 串流已結束（模型服務可能已停止）"
+    "streamEnded": "Log 串流已結束（服務可能已停止）",
+    "groupServices": "模型服務",
+    "groupPlatform": "平台",
+    "platform": { "gateway": "Gateway（LiteLLM）", "backend": "平台後端" }
+  },
+  "external": {
+    "title": "非本平台管理的服務",
+    "intro": "這些程式也在使用 GPU 記憶體，但不是由這個控制台建立的。平台不會停止或修改它們，只會在預估記憶體時把它們算進去。",
+    "none": "目前沒有偵測到外部服務",
+    "total": "合計佔用 GPU 記憶體約 {{size}}",
+    "image": "映像檔",
+    "status": "狀態",
+    "since": "啟動於 {{time}}",
+    "ports": "對外 port",
+    "compose": "Compose 專案",
+    "kind": { "container": "容器", "process": "主機程式" },
+    "hint": {
+      "vllm": "這看起來是手動啟動的 vLLM。如需停止，請在 Spark 上執行：docker stop {{name}}",
+      "compose": "由 docker compose 專案「{{project}}」啟動。如需停止，請到該專案目錄執行 docker compose down。",
+      "container": "如需停止，請在 Spark 上執行：docker stop {{name}}",
+      "process": "這是直接在主機上執行的程式（不在容器內），請由啟動它的人處理。"
+    }
+  },
+  "modelDetails": {
+    "title": "模型詳細",
+    "open": "詳細資訊",
+    "noQuant": "無（原始精度）",
+    "kvPerToken": "對話快取大小",
+    "presets": "各用途的建議設定（依這台機器計算）",
+    "tech": "技術資訊",
+    "source": "來源",
+    "path": "路徑",
+    "files": "檔案（{{count}}）"
   },
   "gateway": {
     "title": "Gateway（對外 API 入口）",

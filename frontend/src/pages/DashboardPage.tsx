@@ -1,7 +1,9 @@
 import { Alert, Anchor, Badge, Button, Card, Group, Progress, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
 import { IconAlertTriangle } from "@tabler/icons-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { ExternalServicesDrawer } from "@/components/ExternalServicesDrawer";
 import { useAutostart, useCancelAutostart, useInstances, useSystemSummary } from "@/api/hooks";
 import type { InstanceStatus } from "@/api/types";
 import { QueryState } from "@/components/QueryState";
@@ -22,6 +24,7 @@ export function DashboardPage() {
   const autostart = useAutostart();
   const cancelAutostart = useCancelAutostart();
   const s = summary.data;
+  const [extOpen, setExtOpen] = useState(false);
   const running = (instances.data ?? []).filter((i) => !["STOPPED", "CREATED"].includes(i.status));
 
   return (
@@ -55,8 +58,20 @@ export function DashboardPage() {
             )}
 
           {s.external_services > 0 && (
-            <Alert color="yellow" icon={<IconAlertTriangle />}>
-              {t("dashboard.externalServices", { count: s.external_services })}
+            <Alert color="yellow" icon={<IconAlertTriangle />} data-testid="external-alert">
+              <Group justify="space-between">
+                <Text size="sm">
+                  {s.external_gpu_bytes > 0
+                    ? t("dashboard.externalServicesMem", {
+                        count: s.external_services,
+                        size: formatBytes(s.external_gpu_bytes, 0),
+                      })
+                    : t("dashboard.externalServices", { count: s.external_services })}
+                </Text>
+                <Button size="xs" variant="white" color="yellow" onClick={() => setExtOpen(true)}>
+                  {t("dashboard.externalDetails")}
+                </Button>
+              </Group>
             </Alert>
           )}
 
@@ -66,10 +81,29 @@ export function DashboardPage() {
               <Badge color={s.capabilities.docker ? "green" : "red"} variant="light" mt="xs">
                 {t(s.capabilities.docker ? "dashboard.gatewayOk" : "dashboard.gatewayDown")}
               </Badge>
-              {s.gpu?.utilization_pct != null && (
-                <Text size="sm" c="dimmed" mt="xs">
-                  {t("dashboard.gpuUtil", { pct: s.gpu.utilization_pct })}
-                </Text>
+              {s.gpu && (
+                <Stack gap={2} mt="xs" data-testid="gpu-card">
+                  {s.gpu.utilization_pct != null && (
+                    <>
+                      <Text size="sm">{t("dashboard.gpuUtil", { pct: s.gpu.utilization_pct })}</Text>
+                      <Progress value={s.gpu.utilization_pct} color="grape" />
+                    </>
+                  )}
+                  <Text size="xs" c="dimmed">
+                    {[
+                      s.gpu.name,
+                      s.gpu.temperature_c != null ? `${s.gpu.temperature_c}°C` : null,
+                      s.gpu.power_w != null ? `${s.gpu.power_w} W` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Text>
+                  {s.gpu.process_bytes > 0 && (
+                    <Text size="xs" c="dimmed">
+                      {t("dashboard.gpuProcMem", { size: formatBytes(s.gpu.process_bytes, 0) })}
+                    </Text>
+                  )}
+                </Stack>
               )}
             </Card>
 
@@ -168,6 +202,7 @@ export function DashboardPage() {
               {t("dashboard.needKey")}
             </Anchor>
           </Card>
+          <ExternalServicesDrawer opened={extOpen} onClose={() => setExtOpen(false)} />
         </Stack>
       )}
     </QueryState>

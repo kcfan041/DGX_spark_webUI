@@ -43,6 +43,16 @@ services:
       - ${HF_CACHE_DIR:-./.empty-hf-cache}:/hf-cache:ro
       - ../configs:/app/configs:ro
       - backend-data:/data
+    # GPU access is only used to run nvidia-smi for the dashboard; pid: host lets the backend map
+    # GPU process ids to containers (managed vs. external). compose.dev.yaml removes both.
+    pid: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility]
     depends_on:
       litellm:
         condition: service_started

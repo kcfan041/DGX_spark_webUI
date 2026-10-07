@@ -8,6 +8,10 @@ import type {
   CreatedApiKey,
   DownloadInfo,
   DownloadPreview,
+  ExternalService,
+  InstanceMetrics,
+  LogSource,
+  ModelDetails,
   GatewayModel,
   GatewayStatus,
   Instance,
@@ -318,6 +322,32 @@ export function useSetHfToken() {
     onSuccess: (d) => qc.setQueryData(["settings", "hf-token"], d),
   });
 }
+
+export const useExternal = (enabled = true) =>
+  useQuery({
+    queryKey: ["system", "external"],
+    queryFn: () => api<{ services: ExternalService[]; total_gpu_bytes: number }>("/system/external"),
+    enabled,
+    refetchInterval: POLL_MS * 2,
+  });
+
+export const useInstanceMetrics = (id: string | undefined) =>
+  useQuery({
+    queryKey: ["instances", id, "metrics"],
+    queryFn: () => api<InstanceMetrics>(`/instances/${id}/metrics`),
+    enabled: Boolean(id),
+    refetchInterval: POLL_MS * 2,
+  });
+
+export const useLogSources = () =>
+  useQuery({ queryKey: ["logs", "sources"], queryFn: () => api<LogSource[]>("/logs/sources"), refetchInterval: POLL_MS * 3 });
+
+export const useModelDetails = (id: string | null) =>
+  useQuery({
+    queryKey: ["model-details", id],
+    queryFn: () => api<ModelDetails>(`/model-details/${encodeURIComponent(id ?? "")}`),
+    enabled: Boolean(id),
+  });
 
 export function useCancelAutostart() {
   const qc = useQueryClient();

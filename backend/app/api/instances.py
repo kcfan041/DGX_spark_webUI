@@ -294,6 +294,29 @@ async def gateway_retry(instance_id: str, svc: Svc, base: PublicApiBase, _: Curr
     return await _action(svc, base, instance_id, "gateway/retry")
 
 
+class InstanceMetrics(BaseModel):
+    gpu_bytes: int | None
+    reserved_bytes: int | None
+    available: bool
+
+
+@router.get("/instances/{instance_id}/metrics", response_model=InstanceMetrics)
+async def instance_metrics(instance_id: str, svc: Svc, _: CurrentPrincipal) -> InstanceMetrics:
+    try:
+        inst = svc.manager.get(instance_id)
+    except NotFoundError as e:
+        raise _not_found() from e
+    mem = svc.metrics.memory()
+    reserved = int(float(inst.params.get("gpu_memory_utilization", 0)) * mem.total_bytes) if mem else None
+    gpu = await asyncio.to_thread(svc.metrics.gpu)
+    if gpu is None:
+        return InstanceMetrics(gpu_bytes=None, reserved_bytes=reserved, available=False)
+    cid = inst.container_id or ""
+    used = sum(p.used_bytes or 0 for p in gpu.processes if cid and p.container_id and p.container_id.startswith(cid))
+    running = inst.status in (InstanceStatus.LOADING, InstanceStatus.READY)
+    return InstanceMetrics(gpu_bytes=used if running else None, reserved_bytes=reserved, available=True)
+
+
 @router.get("/instances/{instance_id}/events", response_model=list[EventOut])
 def events(instance_id: str, svc: Svc, _: CurrentPrincipal) -> list[InstanceEvent]:
     try:
@@ -354,7 +377,10 @@ async def stream_logs(
         inst = svc.manager.get(instance_id)
     except NotFoundError as e:
         raise _not_found() from e
-    name = svc.manager.container_name(inst)
+    return sse_logs(svc, request, svc.manager.container_name(inst), tail, noise)
+
+
+def sse_logs(svc: Svc, request: Request, name: str, tail: int, noise: bool) -> StreamingResponse:
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=1000)
     stop = threading.Event()

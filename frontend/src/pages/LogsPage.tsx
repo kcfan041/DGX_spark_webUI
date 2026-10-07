@@ -1,31 +1,52 @@
 import { Alert, Group, Select, Stack, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { useInstances } from "@/api/hooks";
+import { useLogSources } from "@/api/hooks";
 import { LogViewer } from "@/components/service/LogViewer";
 
 export function LogsPage() {
   const { t } = useTranslation();
-  const instances = useInstances();
+  const sources = useLogSources();
   const [search, setSearch] = useSearchParams();
-  const source = search.get("source");
-  const options = (instances.data ?? []).map((i) => ({ value: i.id, label: `${i.display_name}（${t(`status.${i.status}`)}）` }));
+  const legacy = search.get("source");
+  const source = legacy && !legacy.includes(":") && !["gateway", "backend"].includes(legacy) ? `service:${legacy}` : legacy;
+
+  const services = (sources.data ?? []).filter((s) => s.kind === "service");
+  const platform = (sources.data ?? []).filter((s) => s.kind === "platform");
+  const data = [
+    {
+      group: t("logs.groupServices"),
+      items: services.map((s) => ({
+        value: s.id,
+        label: `${s.name}（${t(`status.${s.status}`, { defaultValue: s.status ?? "" })}）`,
+      })),
+    },
+    {
+      group: t("logs.groupPlatform"),
+      items: platform.map((s) => ({ value: s.id, label: t(`logs.platform.${s.id}`, { defaultValue: s.name }) })),
+    },
+  ].filter((g) => g.items.length > 0);
 
   return (
     <Stack>
       <Group justify="space-between">
         <Title order={3}>{t("logs.title")}</Title>
         <Select
-          w={360}
+          w={380}
           label={t("logs.source")}
           placeholder={t("logs.noSource")}
-          data={options}
+          data={data}
           value={source}
           onChange={(v) => setSearch(v ? { source: v } : {}, { replace: true })}
           searchable
+          data-testid="log-source"
         />
       </Group>
-      {source ? <LogViewer instanceId={source} height={600} /> : <Alert>{t("logs.noSource")}</Alert>}
+      {source ? (
+        <LogViewer key={source} source={source} height={600} />
+      ) : (
+        <Alert>{t("logs.noSource")}</Alert>
+      )}
     </Stack>
   );
 }

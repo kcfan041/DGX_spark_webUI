@@ -26,7 +26,9 @@ export interface GpuStats {
   name: string | null;
   driver: string | null;
   utilization_pct: number | null;
-  processes: { pid: string; name: string; used_bytes: number | null }[];
+  temperature_c: number | null;
+  power_w: number | null;
+  process_bytes: number;
 }
 
 export interface SystemSummary {
@@ -38,6 +40,40 @@ export interface SystemSummary {
   gateway: { reachable: boolean; db_connected: boolean; version?: string; error?: string };
   counts: Record<InstanceStatus, number>;
   external_services: number;
+  external_gpu_bytes: number;
+}
+
+export interface ExternalService {
+  kind: "container" | "process";
+  name: string;
+  image: string | null;
+  status: string | null;
+  started_at: string | null;
+  ports: number[];
+  compose_project: string | null;
+  pids: number[];
+  gpu_bytes: number | null;
+  hint_key: string;
+}
+
+export interface InstanceMetrics {
+  gpu_bytes: number | null;
+  reserved_bytes: number | null;
+  available: boolean;
+}
+
+export interface LogSource {
+  id: string;
+  kind: "service" | "platform";
+  name: string;
+  status: string | null;
+}
+
+export interface ModelDetails {
+  model: ModelMeta;
+  config: Record<string, unknown>;
+  files: { name: string; size: number }[];
+  presets: ResolvedPreset[];
 }
 
 export interface SystemInfo {
@@ -62,6 +98,7 @@ export interface ModelMeta {
   quantization: string | null;
   dtype: string | null;
   max_context: number | null;
+  kv_bytes_per_token?: number | null;
   needs_remote_code: boolean;
   host_path: string;
   in_use_by: string[];

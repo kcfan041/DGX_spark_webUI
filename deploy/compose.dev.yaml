@@ -6,6 +6,8 @@ services:
       DGXSP_PROFILE: dev
     ports:
       - "127.0.0.1:8080:8080"
+    pid: !reset null
+    deploy: !reset {}
 
   mock-vllm-image:
     build: ../mock-vllm

@@ -182,7 +182,44 @@ class DockerRuntime:
             if labels.get(LABEL_MANAGED) == "true" or labels.get("com.docker.compose.project", "").startswith("dgxsp"):
                 continue
             image = ",".join(c.image.tags) if c.image and c.image.tags else str(c.attrs.get("Config", {}).get("Image"))
-            uses_gpu = bool((c.attrs.get("HostConfig") or {}).get("DeviceRequests"))
+            host = c.attrs.get("HostConfig") or {}
+            uses_gpu = bool(host.get("DeviceRequests")) or host.get("Runtime") == "nvidia"
             if uses_gpu or "vllm" in image.lower():
-                out.append({"name": c.name, "image": image, "status": c.status, "uses_gpu": uses_gpu})
+                ports = sorted(
+                    {
+                        int(b["HostPort"])
+                        for binds in ((c.attrs.get("NetworkSettings") or {}).get("Ports") or {}).values()
+                        for b in (binds or [])
+                        if b.get("HostPort", "").isdigit()
+                    }
+                )
+                out.append(
+                    {
+                        "id": str(c.id),
+                        "name": c.name,
+                        "image": image,
+                        "status": c.status,
+                        "uses_gpu": uses_gpu,
+                        "started_at": (c.attrs.get("State") or {}).get("StartedAt"),
+                        "ports": ports,
+                        "network_mode": host.get("NetworkMode"),
+                        "compose_project": labels.get("com.docker.compose.project"),
+                    }
+                )
         return out
+
+    def managed_container_ids(self) -> set[str]:
+        ids = {str(c.id) for c in self.client.containers.list(filters={"label": f"{LABEL_MANAGED}=true"})}
+        for c in self.client.containers.list(filters={"label": "com.docker.compose.project"}):
+            if (c.labels or {}).get("com.docker.compose.project", "").startswith("dgxsp"):
+                ids.add(str(c.id))
+        return ids
+
+    def logs_by_name(self, name: str, tail: int = 500) -> list[str]:
+        return self.logs(name, tail)
+
+    def compose_container(self, service: str) -> str | None:
+        for c in self.client.containers.list(all=True, filters={"label": f"com.docker.compose.service={service}"}):
+            if (c.labels or {}).get("com.docker.compose.project", "").startswith("dgxsp"):
+                return c.name
+        return None

@@ -7,11 +7,13 @@ from sqlmodel import func, select
 
 from app import __version__
 from app.adapters.litellm_client import GatewayError
+from app.adapters.metrics import GpuStats
 from app.api.deps import Svc
 from app.core.security import CurrentPrincipal
 from app.db.models import Instance
 from app.db.session import DbSession
 from app.domain.instance import InstanceStatus
+from app.services.external import ExternalSummary, build_external
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -32,6 +34,7 @@ class SystemSummary(BaseModel):
     gateway: dict[str, Any]
     counts: dict[str, int]
     external_services: int
+    external_gpu_bytes: int = 0
 
 
 async def gateway_status(svc: Svc) -> dict[str, Any]:
@@ -72,7 +75,7 @@ async def summary(svc: Svc, db: DbSession, _: CurrentPrincipal) -> SystemSummary
     gpu = await asyncio.to_thread(svc.metrics.gpu)
     docker_ok = await asyncio.to_thread(svc.docker.ping)
     gw = await gateway_status(svc)
-    externals = await asyncio.to_thread(svc.docker.list_external_candidates) if docker_ok else []
+    ext = await external_summary(svc, gpu, docker_ok)
 
     rows = db.exec(select(Instance.status, func.count()).group_by(Instance.status)).all()
     counts = {s.value: 0 for s in InstanceStatus}
@@ -95,8 +98,24 @@ async def summary(svc: Svc, db: DbSession, _: CurrentPrincipal) -> SystemSummary
         capabilities=Capabilities(memory=mem is not None, disk=disk is not None, gpu=gpu is not None, docker=docker_ok),
         memory=mem.model_dump() | {"used_bytes": mem.used_bytes} if mem else None,
         disk=disk.model_dump() if disk else None,
-        gpu=gpu.model_dump() if gpu else None,
+        gpu=gpu.model_dump(exclude={"processes"}) | {"process_bytes": gpu.process_bytes} if gpu else None,
         gateway=gw,
         counts=counts,
-        external_services=len(externals),
+        external_services=len(ext.services),
+        external_gpu_bytes=ext.total_gpu_bytes,
     )
+
+
+async def external_summary(svc: Svc, gpu: GpuStats | None, docker_ok: bool) -> ExternalSummary:
+    if not docker_ok:
+        return build_external([], gpu, set())
+    containers = await asyncio.to_thread(svc.docker.list_external_candidates)
+    managed = await asyncio.to_thread(svc.docker.managed_container_ids)
+    return build_external(containers, gpu, managed)
+
+
+@router.get("/external", response_model=ExternalSummary)
+async def external(svc: Svc, _: CurrentPrincipal) -> ExternalSummary:
+    gpu = await asyncio.to_thread(svc.metrics.gpu)
+    docker_ok = await asyncio.to_thread(svc.docker.ping)
+    return await external_summary(svc, gpu, docker_ok)

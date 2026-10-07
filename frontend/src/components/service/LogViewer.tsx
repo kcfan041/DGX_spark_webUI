@@ -33,7 +33,17 @@ async function* sseLines(url: string, signal: AbortSignal): AsyncGenerator<{ eve
   }
 }
 
-export function LogViewer({ instanceId, height = 480 }: { instanceId: string; height?: number }) {
+interface Props {
+  instanceId?: string;
+  source?: string;
+  height?: number;
+}
+
+export function LogViewer({ instanceId, source, height = 480 }: Props) {
+  const streamPath = source
+    ? `/api/v1/logs/${encodeURIComponent(source)}/stream?tail=500`
+    : `/api/v1/instances/${instanceId}/logs/stream?tail=500`;
+  const fileName = (source ?? `service-${instanceId}`).replace(/[^a-z0-9._-]+/gi, "-");
   const { t } = useTranslation();
   const [lines, setLines] = useState<LogLine[]>([]);
   const [live, setLive] = useState(true);
@@ -50,7 +60,7 @@ export function LogViewer({ instanceId, height = 480 }: { instanceId: string; he
     const ctrl = new AbortController();
     (async () => {
       try {
-        for await (const msg of sseLines(`/api/v1/instances/${instanceId}/logs/stream?tail=500`, ctrl.signal)) {
+        for await (const msg of sseLines(streamPath, ctrl.signal)) {
           if (msg.event === "end") {
             setEnded(true);
             break;
@@ -67,7 +77,7 @@ export function LogViewer({ instanceId, height = 480 }: { instanceId: string; he
       }
     })();
     return () => ctrl.abort();
-  }, [instanceId]);
+  }, [streamPath]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -84,7 +94,7 @@ export function LogViewer({ instanceId, height = 480 }: { instanceId: string; he
     const blob = new Blob([lines.map((l) => `${l.ts ?? ""} ${l.text}`).join("\n")], { type: "text/plain" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `service-${instanceId}.log`;
+    a.download = `${fileName}.log`;
     a.click();
     URL.revokeObjectURL(a.href);
   };

@@ -1,7 +1,29 @@
-import { ActionIcon, Alert, Badge, Button, Group, Menu, Stack, Table, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Group,
+  Menu,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+  Tooltip,
+} from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { IconAlertTriangle, IconDots, IconDownload, IconRefresh, IconSearch, IconTrash } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconDots,
+  IconDownload,
+  IconInfoCircle,
+  IconRefresh,
+  IconSearch,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -10,6 +32,7 @@ import type { ModelMeta } from "@/api/types";
 import { QueryState } from "@/components/QueryState";
 import { DownloadModal } from "@/components/models/DownloadModal";
 import { DownloadsPanel } from "@/components/models/DownloadsPanel";
+import { ModelDetailsDrawer } from "@/components/models/ModelDetailsDrawer";
 import { useApiErrorNotifier } from "@/hooks/useApiError";
 import { formatBytes, formatContext } from "@/lib/format";
 
@@ -22,6 +45,7 @@ export function ModelsPage() {
   const notifyError = useApiErrorNotifier();
   const [q, setQ] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [details, setDetails] = useState<string | null>(null);
 
   const rows = useMemo(
     () => (models.data ?? []).filter((m) => m.name.toLowerCase().includes(q.trim().toLowerCase())),
@@ -98,7 +122,9 @@ export function ModelsPage() {
                 <Table.Tr key={m.id}>
                   <Table.Td>
                     <Group gap={6}>
-                      <Text fw={500}>{m.name}</Text>
+                      <Anchor component="button" type="button" fw={500} c="inherit" onClick={() => setDetails(m.id)} data-testid="model-name">
+                        {m.name}
+                      </Anchor>
                       {m.needs_remote_code && (
                         <Tooltip label={t("models.remoteCode")}>
                           <IconAlertTriangle size={16} color="var(--mantine-color-yellow-6)" />
@@ -140,6 +166,9 @@ export function ModelsPage() {
                           </ActionIcon>
                         </Menu.Target>
                         <Menu.Dropdown>
+                          <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={() => setDetails(m.id)}>
+                            {t("modelDetails.open")}
+                          </Menu.Item>
                           <Menu.Item
                             color="red"
                             leftSection={<IconTrash size={14} />}
@@ -166,6 +195,7 @@ export function ModelsPage() {
         )}
       </QueryState>
       <DownloadModal opened={downloading} onClose={() => setDownloading(false)} />
+      <ModelDetailsDrawer modelId={details} onClose={() => setDetails(null)} />
     </Stack>
   );
 }

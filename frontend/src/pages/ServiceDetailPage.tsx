@@ -3,7 +3,7 @@ import { IconRefreshDot } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useInstance, useInstanceEvents, useSystemInfo, useSystemSummary } from "@/api/hooks";
+import { useInstance, useInstanceEvents, useInstanceMetrics, useSystemInfo, useSystemSummary } from "@/api/hooks";
 import type { Instance, Suggestion } from "@/api/types";
 import { QueryState } from "@/components/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -123,6 +123,7 @@ export function ServiceDetailPage() {
   const events = useInstanceEvents(id);
   const info = useSystemInfo();
   const summary = useSystemSummary();
+  const metrics = useInstanceMetrics(id);
   const actions = useServiceActions();
   const [editInit, setEditInit] = useState<EditSettingsHandle | null>(null);
   const inst = q.data;
@@ -221,6 +222,11 @@ export function ServiceDetailPage() {
                           : "—",
                       })}
                     </Text>
+                    {metrics.data?.gpu_bytes != null && (
+                      <Text size="sm" data-testid="gpu-used">
+                        {t("detail.gpuUsed", { size: formatBytes(metrics.data.gpu_bytes, 1) })}
+                      </Text>
+                    )}
                   </Card>
                 </SimpleGrid>
                 <SettingsSummary
