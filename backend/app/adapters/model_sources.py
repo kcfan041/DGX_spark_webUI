@@ -155,6 +155,8 @@ class LocalDirSource(ModelSource):
         out: list[ModelMeta] = []
         for cfg in sorted(self.root.glob("*/config.json")) + sorted(self.root.glob("*/*/config.json")):
             model_dir = cfg.parent
+            if any(part.startswith(".") for part in model_dir.relative_to(self.root).parts):
+                continue  # hidden dirs, incl. in-progress downloads (.<name>.partial)
             if not _has_weights(model_dir):
                 continue
             rel = model_dir.relative_to(self.root).as_posix()

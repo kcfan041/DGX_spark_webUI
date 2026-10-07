@@ -84,7 +84,8 @@ export function DownloadsPanel() {
   );
   if (items.length === 0) return null;
 
-  const run = (id: string, a: "cancel" | "retry" | "delete") => action.mutate({ id, action: a }, { onError: notifyError });
+  const run = (id: string, a: "cancel" | "retry" | "delete") =>
+    action.mutate({ id, action: a }, { onError: notifyError });
 
   return (
     <Card withBorder data-testid="downloads-panel">
@@ -107,7 +108,11 @@ export function DownloadsPanel() {
                 </Group>
                 <Group gap={4} wrap="nowrap">
                   {d.status === "completed" && d.model_id && (
-                    <Button size="compact-xs" component={Link} to={`/services/new?model=${encodeURIComponent(d.model_id)}`}>
+                    <Button
+                      size="compact-xs"
+                      component={Link}
+                      to={`/services/new?model=${encodeURIComponent(d.model_id)}`}
+                    >
                       {t("models.createService")}
                     </Button>
                   )}
@@ -141,7 +146,12 @@ export function DownloadsPanel() {
                   )}
                   {d.status !== "queued" && d.status !== "downloading" && (
                     <Tooltip label={t("downloads.dismiss")}>
-                      <ActionIcon variant="subtle" color="gray" onClick={() => run(d.id, "delete")} aria-label="dismiss">
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        onClick={() => run(d.id, "delete")}
+                        aria-label="dismiss"
+                      >
                         <IconX size={16} />
                       </ActionIcon>
                     </Tooltip>
@@ -162,6 +172,11 @@ export function DownloadsPanel() {
               {d.status === "completed" && (
                 <Text size="xs" c="dimmed">
                   {t("downloads.savedTo", { dir: d.target_dir, size: formatBytes(d.bytes_total) })}
+                </Text>
+              )}
+              {d.error?.leftover && (
+                <Text size="xs" c="orange" data-testid="download-leftover">
+                  {t("downloads.leftover", { path: d.error.leftover })}
                 </Text>
               )}
             </Stack>

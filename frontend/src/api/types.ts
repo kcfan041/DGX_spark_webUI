@@ -411,7 +411,7 @@ export interface DownloadInfo {
   progress: number | null;
   speed_bps: number | null;
   stalled_s: number | null;
-  error: { code: string; message?: string } | null;
+  error: { code: string; message?: string; leftover?: string } | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;

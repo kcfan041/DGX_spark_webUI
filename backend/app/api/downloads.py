@@ -95,10 +95,23 @@ async def delete_model(model_id: str, svc: Svc, db: DbSession, _: CurrentPrincip
     target = (svc.settings.model_root / m.locator).resolve()
     if root not in target.parents:
         raise HTTPException(status_code=409, detail={"code": "MODEL_NOT_DELETABLE"})
+    top = target.relative_to(root).parts[0]
+    if svc.downloads.is_busy(top) or svc.downloads.is_busy(top.removeprefix(".").removesuffix(".partial")):
+        raise HTTPException(status_code=409, detail={"code": "DOWNLOAD_ACTIVE"})
     try:
         await asyncio.to_thread(shutil.rmtree, target)
+    except FileNotFoundError:
+        pass  # already gone (e.g. a cancelled download cleaned it up): just refresh the list
+    except PermissionError as e:
+        await asyncio.to_thread(svc.catalog.rescan)
+        raise HTTPException(
+            status_code=500, detail={"code": "MODEL_DELETE_PERMISSION", "params": {"error": str(e)[:300]}}
+        ) from e
     except OSError as e:
-        raise HTTPException(status_code=500, detail={"code": "MODEL_DELETE_FAILED", "params": {"error": str(e)}}) from e
+        await asyncio.to_thread(svc.catalog.rescan)
+        raise HTTPException(
+            status_code=500, detail={"code": "MODEL_DELETE_FAILED", "params": {"error": str(e)[:300]}}
+        ) from e
     await asyncio.to_thread(svc.catalog.rescan)
 
 

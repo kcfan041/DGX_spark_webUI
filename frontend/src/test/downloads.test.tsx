@@ -117,3 +117,51 @@ describe("DownloadsPanel progress line", () => {
     expect(text).not.toContain("—");
   });
 });
+describe("download cleanup and delete errors", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows a hint when temporary files were left behind", async () => {
+    mockFetch({
+      "GET /downloads": () => [
+        {
+          id: "d1",
+          repo_id: "openai/gpt-oss-20b",
+          revision: null,
+          target_dir: "gpt-oss-20b",
+          status: "cancelled",
+          bytes_total: 1,
+          bytes_done: 0,
+          files_total: 1,
+          progress: 0,
+          speed_bps: null,
+          stalled_s: null,
+          error: { code: "CANCELLED", leftover: "/models/.gpt-oss-20b.partial" },
+          created_at: "2026-10-08T00:00:00Z",
+          started_at: null,
+          finished_at: "2026-10-08T00:01:00Z",
+          model_id: null,
+        },
+      ],
+    });
+    renderRoute(<DownloadsPanel />, "/models", "/models");
+    expect(await screen.findByTestId("download-leftover")).toHaveTextContent("/models/.gpt-oss-20b.partial");
+  });
+
+  it("shows the real reason when deleting model files fails", async () => {
+    const { notifications } = await import("@mantine/notifications");
+    const show = vi.spyOn(notifications, "show").mockImplementation(() => "");
+    const { useApiErrorNotifier } = await import("@/hooks/useApiError");
+    const { ApiError } = await import("@/api/client");
+    const { renderHook } = await import("@testing-library/react");
+    const { result } = renderHook(() => useApiErrorNotifier());
+    result.current(
+      new ApiError(500, "MODEL_DELETE_FAILED", {
+        code: "MODEL_DELETE_FAILED",
+        params: { error: "Directory not empty" },
+      }),
+    );
+    expect(String(show.mock.calls[0]?.[0].message)).toContain("Directory not empty");
+    expect(String(show.mock.calls[0]?.[0].message)).not.toContain("權限");
+    show.mockRestore();
+  });
+});

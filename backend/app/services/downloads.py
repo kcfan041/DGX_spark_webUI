@@ -384,6 +384,9 @@ class DownloadManager:
     def _active_targets(self) -> set[str]:
         return {d.target_dir for d in self.all() if d.status in ACTIVE}
 
+    def is_busy(self, target_dir: str) -> bool:
+        return target_dir in self._active_targets()
+
     # ------------------------------------------------------------------ preview / create
 
     def preview(self, repo_id: str, target_dir: str | None, revision: str | None = None) -> DownloadPreview:
@@ -466,8 +469,7 @@ class DownloadManager:
                     break
                 await asyncio.sleep(0.05)
         else:
-            self._update(download_id, status="cancelled", finished_at=utcnow())
-            self._remove_partial(d.target_dir)
+            self._cleanup_failed(download_id, d.target_dir, status="cancelled")
         return self._get(download_id)
 
     def retry(self, download_id: str) -> Download:
@@ -495,8 +497,34 @@ class DownloadManager:
     def _partial(self, target: str) -> Path:
         return self.model_root / f".{target}{PARTIAL_SUFFIX}"
 
-    def _remove_partial(self, target: str) -> None:
-        shutil.rmtree(self._partial(target), ignore_errors=True)
+    def _remove_partial(self, target: str) -> bool:
+        """Remove an in-progress directory. Returns False (and logs why) if something is left behind."""
+        path = self._partial(target)
+        errors: list[str] = []
+
+        def onexc(_func: Any, p: str, exc: BaseException) -> None:
+            errors.append(f"{p}: {exc}")
+
+        if path.exists():
+            shutil.rmtree(path, onexc=onexc)
+        if path.exists():
+            log.warning("could not fully remove %s: %s", path, "; ".join(errors[:3]) or "unknown")
+            return False
+        return True
+
+    def _rescan(self) -> None:
+        try:
+            self.on_complete()
+        except Exception:  # noqa: BLE001
+            log.exception("model rescan failed")
+
+    def _cleanup_failed(self, download_id: str, target: str, **fields: Any) -> None:
+        clean = self._remove_partial(target)
+        err = fields.get("error")
+        if not clean:
+            fields["error"] = {**(err or {"code": "CANCELLED"}), "leftover": str(self._partial(target))}
+        self._update(download_id, finished_at=utcnow(), **fields)
+        self._rescan()
 
     def _next(self) -> Download | None:
         with Session(self.engine) as s:
@@ -515,7 +543,7 @@ class DownloadManager:
         for p in self.model_root.glob(f".*{PARTIAL_SUFFIX}") if self.model_root.is_dir() else []:
             target = p.name[1 : -len(PARTIAL_SUFFIX)]
             if target not in self._active_targets():
-                shutil.rmtree(p, ignore_errors=True)
+                self._remove_partial(target)
         self._task = asyncio.create_task(self._loop(), name="downloads")
         self._wake.set()
 
@@ -541,13 +569,9 @@ class DownloadManager:
                 raise
             except Exception as e:
                 log.exception("download %s failed", d.id)
-                self._update(
-                    d.id,
-                    status="failed",
-                    finished_at=utcnow(),
-                    error={"code": "UNKNOWN", "message": repr(e)[:300]},
+                self._cleanup_failed(
+                    d.id, d.target_dir, status="failed", error={"code": "UNKNOWN", "message": repr(e)[:300]}
                 )
-                self._remove_partial(d.target_dir)
             finally:
                 self._current = None
                 self._proc = None
@@ -594,31 +618,25 @@ class DownloadManager:
 
         if d.id in self._cancel_requested:
             self._cancel_requested.discard(d.id)
-            self._remove_partial(d.target_dir)
-            self._update(d.id, status="cancelled", finished_at=utcnow())
+            self._cleanup_failed(d.id, d.target_dir, status="cancelled")
             return
 
         if rc != 0:
             err = self._parse_error(b"".join(stderr_chunks).decode(errors="replace"), rc)
-            self._remove_partial(d.target_dir)
-            self._update(d.id, status="failed", finished_at=utcnow(), error=err)
+            self._cleanup_failed(d.id, d.target_dir, status="failed", error=err)
             return
 
         cache = partial / ".cache"
         shutil.rmtree(cache, ignore_errors=True)
         if not (partial / "config.json").is_file():
-            self._remove_partial(d.target_dir)
-            self._update(d.id, status="failed", finished_at=utcnow(), error={"code": "NO_CONFIG"})
+            self._cleanup_failed(d.id, d.target_dir, status="failed", error={"code": "NO_CONFIG"})
             return
         if self.owner:
             self._chown(partial, *self.owner)
         total = await asyncio.to_thread(dir_size, partial)
         os.replace(partial, final)
         self._update(d.id, status="completed", finished_at=utcnow(), bytes_done=total, bytes_total=total)
-        try:
-            self.on_complete()
-        except Exception:  # noqa: BLE001
-            log.exception("rescan after download failed")
+        self._rescan()
 
     @staticmethod
     def _chown(path: Path, uid: int, gid: int) -> None:

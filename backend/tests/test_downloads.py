@@ -183,9 +183,12 @@ async def test_cancel_running_and_queued(mgr: DownloadManager) -> None:
         await asyncio.sleep(0.05)
     assert mgr._get(queued.id).status == "queued"
     assert (await mgr.cancel(queued.id)).status == "cancelled"
+    n_rescans = len(mgr.rescans)  # type: ignore[attr-defined]
     assert (await mgr.cancel(slow.id)).status == "cancelled"
     assert not (mgr.model_root / "slow").exists()
     assert not list(mgr.model_root.glob(".*.partial"))
+    assert len(mgr.rescans) > n_rescans  # type: ignore[attr-defined]
+    assert mgr._get(slow.id).error is None
 
     again = mgr.retry(queued.id)
     assert again.status == "queued"
@@ -255,3 +258,75 @@ def test_api_delete_model(client, auth, settings) -> None:  # type: ignore[no-un
     assert not (settings.model_root / "Qwen2.5-0.5B-Instruct").exists()
     assert client.get("/api/v1/models", headers=auth).json() == []
     assert client.delete("/api/v1/models/local:..%2F..%2Fetc", headers=auth).status_code == 404
+
+
+def test_scan_skips_partial_and_hidden_dirs(tmp_path: Path) -> None:
+    from app.adapters.model_sources import LocalDirSource
+    from tests.conftest import QWEN_CONFIG, make_model
+
+    make_model(tmp_path, "real", QWEN_CONFIG)
+    make_model(tmp_path, ".gpt-oss-20b.partial", QWEN_CONFIG)
+    make_model(tmp_path / ".hidden", "inner", QWEN_CONFIG)
+    assert [m.locator for m in LocalDirSource("local", tmp_path, "/data/models").scan()] == ["real"]
+
+
+def test_remove_partial_reports_leftovers(tmp_path: Path, engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
+    m = DownloadManager(
+        engine=engine,
+        model_root=tmp_path,
+        hub=FakeHub(),
+        fetcher=ScriptFetcher(),
+        token=lambda: None,
+        on_complete=lambda: None,
+    )
+    p = tmp_path / ".stuck.partial"
+    p.mkdir()
+    (p / "f").write_text("x")
+    assert m._remove_partial("missing") is True
+
+    def fake_rmtree(path, onexc=None):  # type: ignore[no-untyped-def]
+        onexc(None, str(path), PermissionError("denied"))
+
+    monkeypatch.setattr("app.services.downloads.shutil.rmtree", fake_rmtree)
+    assert m._remove_partial("stuck") is False
+    d = m.create("org/good", "stuck")
+    m._cleanup_failed(d.id, "stuck", status="cancelled")
+    err = m._get(d.id).error
+    assert err is not None and err["leftover"].endswith(".stuck.partial")
+
+
+def test_api_delete_model_edge_cases(client, auth, settings, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import shutil as _shutil
+
+    from tests.conftest import QWEN_CONFIG, make_model
+
+    mid = "local:Qwen2.5-0.5B-Instruct"
+    assert client.get("/api/v1/models", headers=auth).status_code == 200
+    _shutil.rmtree(settings.model_root / "Qwen2.5-0.5B-Instruct")
+    r = client.delete(f"/api/v1/models/{mid}", headers=auth)
+    assert r.status_code == 204
+    assert client.get("/api/v1/models", headers=auth).json() == []
+
+    make_model(settings.model_root, "busy", QWEN_CONFIG)
+    client.post("/api/v1/model-sources/rescan", headers=auth)
+    svc = client.app.state.services
+    monkeypatch.setattr(svc.downloads, "is_busy", lambda t: t == "busy")
+    r = client.delete("/api/v1/models/local:busy", headers=auth)
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "DOWNLOAD_ACTIVE"
+    monkeypatch.setattr(svc.downloads, "is_busy", lambda t: False)
+
+    def denied(path):  # type: ignore[no-untyped-def]
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr("app.api.downloads.shutil.rmtree", denied)
+    r = client.delete("/api/v1/models/local:busy", headers=auth)
+    assert r.status_code == 500 and r.json()["detail"]["code"] == "MODEL_DELETE_PERMISSION"
+
+    def other(path):  # type: ignore[no-untyped-def]
+        raise OSError(39, "Directory not empty", str(path))
+
+    monkeypatch.setattr("app.api.downloads.shutil.rmtree", other)
+    r = client.delete("/api/v1/models/local:busy", headers=auth)
+    assert r.status_code == 500
+    assert r.json()["detail"]["code"] == "MODEL_DELETE_FAILED"
+    assert "Directory not empty" in r.json()["detail"]["params"]["error"]
