@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy.engine import Engine
 
 from app.db.session import build_engine, init_db
-from app.services.downloads import DownloadError, DownloadManager, RepoFile, RepoInfo, matches
+from app.services.downloads import DownloadError, DownloadManager, RepoFile, RepoInfo, SpeedTracker, matches
 
 WORKER = Path(__file__).with_name("fake_hf_worker.py")
 
@@ -100,6 +100,25 @@ def test_patterns() -> None:
     assert matches("tokenizer.model", DEFAULT_PATTERNS)
     assert not matches("pytorch_model.bin", DEFAULT_PATTERNS)
     assert not matches("original/consolidated.pth", DEFAULT_PATTERNS)
+
+
+def test_speed_tracker_smooths_gaps_and_reports_stall() -> None:
+    s = SpeedTracker(window_s=10)
+    s.add(0, 0)
+    assert s.speed() is None
+    s.add(1, 100)
+    assert s.speed() == 100
+    s.add(2, 100)
+    assert s.speed() == 50
+    assert s.stalled_for(2) == 1
+    for t in range(3, 13):
+        s.add(t, 100 + (t - 2) * 100)
+    assert s.speed() == pytest.approx(100, rel=0.11)
+    assert s.stalled_for(12) == 0
+    for t in range(13, 50):
+        s.add(t, 1100)
+    assert s.speed() == 0
+    assert s.stalled_for(49) == 37
 
 
 async def test_preview(mgr: DownloadManager) -> None:

@@ -410,6 +410,7 @@ export interface DownloadInfo {
   files_total: number | null;
   progress: number | null;
   speed_bps: number | null;
+  stalled_s: number | null;
   error: { code: string; message?: string } | null;
   created_at: string;
   started_at: string | null;

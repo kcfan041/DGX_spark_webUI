@@ -7,6 +7,8 @@ import os
 import re
 import shutil
 import sys
+import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -89,6 +91,36 @@ class DownloadPreview(BaseModel):
     blocking: bool = False
 
 
+SPEED_WINDOW_S = 10.0
+
+
+class SpeedTracker:
+    """Speed averaged over a sliding window, so a second without disk writes doesn't read as 0 B/s."""
+
+    def __init__(self, window_s: float = SPEED_WINDOW_S) -> None:
+        self.window_s = window_s
+        self._samples: deque[tuple[float, int]] = deque()
+        self._last_growth: float | None = None
+        self._last_bytes = -1
+
+    def add(self, t: float, nbytes: int) -> None:
+        if self._last_growth is None or nbytes > self._last_bytes:
+            self._last_growth = t
+        self._last_bytes = max(self._last_bytes, nbytes)
+        self._samples.append((t, nbytes))
+        while len(self._samples) > 2 and t - self._samples[1][0] >= self.window_s:
+            self._samples.popleft()
+
+    def speed(self) -> float | None:
+        if len(self._samples) < 2:
+            return None
+        (t0, b0), (t1, b1) = self._samples[0], self._samples[-1]
+        return max(0.0, (b1 - b0) / (t1 - t0)) if t1 > t0 else None
+
+    def stalled_for(self, now: float) -> float:
+        return 0.0 if self._last_growth is None else max(0.0, now - self._last_growth)
+
+
 class DownloadOut(BaseModel):
     id: str
     repo_id: str
@@ -100,6 +132,7 @@ class DownloadOut(BaseModel):
     files_total: int | None
     progress: float | None
     speed_bps: float | None = None
+    stalled_s: float | None = None
     error: dict[str, Any] | None
     created_at: datetime
     started_at: datetime | None
@@ -276,7 +309,8 @@ class DownloadManager:
         self._current: str | None = None
         self._proc: Any = None
         self._cancel_requested: set[str] = set()
-        self._speed: dict[str, float] = {}
+        self._speed: dict[str, SpeedTracker] = {}
+        self.clock: Callable[[], float] = time.monotonic
 
     # ------------------------------------------------------------------ helpers
 
@@ -310,6 +344,7 @@ class DownloadManager:
         if d.bytes_total:
             progress = min(1.0, d.bytes_done / d.bytes_total) if d.status != "completed" else 1.0
         model_id = f"local:{d.target_dir}" if d.status == "completed" else None
+        tracker = self._speed.get(d.id) if d.status == "downloading" else None
         return DownloadOut(
             id=d.id,
             repo_id=d.repo_id,
@@ -320,7 +355,8 @@ class DownloadManager:
             bytes_done=d.bytes_done,
             files_total=d.files_total,
             progress=progress,
-            speed_bps=self._speed.get(d.id) if d.status == "downloading" else None,
+            speed_bps=tracker.speed() if tracker else None,
+            stalled_s=round(tracker.stalled_for(self.clock()), 1) if tracker else None,
             error=d.error,
             created_at=d.created_at,
             started_at=d.started_at,
@@ -540,17 +576,16 @@ class DownloadManager:
                 stderr_chunks.append(chunk)
 
         reader = asyncio.create_task(read_stderr())
-        last_bytes, last_t = 0, asyncio.get_running_loop().time()
+        tracker = SpeedTracker()
+        tracker.add(self.clock(), 0)
+        self._speed[d.id] = tracker
         while True:
             try:
                 await asyncio.wait_for(proc.wait(), timeout=self.poll_interval)
                 break
             except TimeoutError:
                 done = await asyncio.to_thread(dir_size, partial)
-                now = asyncio.get_running_loop().time()
-                if now > last_t:
-                    self._speed[d.id] = max(0.0, (done - last_bytes) / (now - last_t))
-                last_bytes, last_t = done, now
+                tracker.add(self.clock(), done)
                 self._update(d.id, bytes_done=done)
         with contextlib.suppress(Exception):
             await asyncio.wait_for(reader, timeout=5)

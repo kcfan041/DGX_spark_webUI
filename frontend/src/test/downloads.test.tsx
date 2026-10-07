@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { DownloadPreview } from "@/api/types";
 import { DownloadModal } from "@/components/models/DownloadModal";
+import { DownloadsPanel } from "@/components/models/DownloadsPanel";
 import zhTW from "@/i18n/locales/zh-TW.json";
 import { mockFetch, renderRoute } from "./utils";
 
@@ -68,5 +69,51 @@ describe("DownloadModal", () => {
     fireEvent.click(screen.getByTestId("download-check"));
     expect(await screen.findByText(zhTW.downloads.errors.REPO_GATED)).toBeInTheDocument();
     expect(screen.getByText(zhTW.downloads.goToken)).toBeInTheDocument();
+  });
+});
+
+describe("DownloadsPanel progress line", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const base = {
+    id: "d1",
+    repo_id: "Qwen/Qwen2.5-7B-Instruct",
+    revision: null,
+    target_dir: "Qwen2.5-7B-Instruct",
+    status: "downloading",
+    bytes_total: 10_000_000_000,
+    bytes_done: 5_800_000_000,
+    files_total: 4,
+    progress: 0.58,
+    error: null,
+    created_at: "2026-10-08T00:00:00Z",
+    started_at: "2026-10-08T00:00:00Z",
+    finished_at: null,
+    model_id: null,
+  };
+
+  async function lineFor(extra: Record<string, unknown>): Promise<string> {
+    mockFetch({ "GET /downloads": () => [{ ...base, ...extra }] });
+    renderRoute(<DownloadsPanel />, "/models", "/models");
+    return (await screen.findByTestId("download-progress")).textContent ?? "";
+  }
+
+  it("shows speed and ETA when known", async () => {
+    const text = await lineFor({ speed_bps: 50 * 1024 * 1024, stalled_s: 2 });
+    expect(text).toContain("58%");
+    expect(text).toContain("50.0 MB/s");
+    expect(text).not.toContain("—");
+  });
+
+  it("says it is measuring instead of showing dashes at the start", async () => {
+    const text = await lineFor({ speed_bps: null, stalled_s: 0 });
+    expect(text).toContain(zhTW.downloads.measuring);
+    expect(text).not.toContain("—");
+  });
+
+  it("warns only after 30s without progress", async () => {
+    const text = await lineFor({ speed_bps: 0, stalled_s: 45 });
+    expect(text).toContain("45 秒");
+    expect(text).not.toContain("—");
   });
 });

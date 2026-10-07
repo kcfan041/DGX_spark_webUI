@@ -19,13 +19,42 @@ const COLOR: Record<DownloadStatus, string> = {
   cancelled: "gray",
 };
 
+const STALL_AFTER_S = 30;
+
 function eta(d: DownloadInfo): number | null {
   if (!d.speed_bps || !d.bytes_total || d.speed_bps < 1) return null;
   return Math.max(0, (d.bytes_total - d.bytes_done) / d.speed_bps);
 }
 
-export function DownloadsPanel() {
+function ProgressLine({ d }: { d: DownloadInfo }) {
   const { t, i18n } = useTranslation();
+  if (d.status === "queued")
+    return (
+      <Text size="xs" c="dimmed">
+        {t("downloads.queuedHint")}
+      </Text>
+    );
+  const pct = d.progress != null ? Math.round(d.progress * 100) : 0;
+  const sizes = t("downloads.sizeLine", { done: formatBytes(d.bytes_done), total: formatBytes(d.bytes_total), pct });
+  const stalled = (d.stalled_s ?? 0) >= STALL_AFTER_S;
+  const left = eta(d);
+  let rate: string;
+  if (stalled) rate = t("downloads.stalled", { time: formatDuration(d.stalled_s ?? 0, i18n.language) });
+  else if (d.speed_bps == null || (d.speed_bps < 1 && left == null)) rate = t("downloads.measuring");
+  else
+    rate = t("downloads.rateLine", {
+      speed: `${formatBytes(d.speed_bps)}/s`,
+      eta: left != null ? formatDuration(left, i18n.language) : t("downloads.measuring"),
+    });
+  return (
+    <Text size="xs" c={stalled ? "orange" : "dimmed"} data-testid="download-progress">
+      {sizes} · {rate}
+    </Text>
+  );
+}
+
+export function DownloadsPanel() {
+  const { t } = useTranslation();
   const q = useDownloads();
   const qc = useQueryClient();
   const action = useDownloadAction();
@@ -65,7 +94,6 @@ export function DownloadsPanel() {
       <Stack gap="sm">
         {items.map((d) => {
           const pct = d.progress != null ? Math.round(d.progress * 100) : null;
-          const left = eta(d);
           return (
             <Stack key={d.id} gap={4} data-testid={`download-${d.status}`}>
               <Group justify="space-between" wrap="nowrap">
@@ -123,17 +151,7 @@ export function DownloadsPanel() {
               {(d.status === "downloading" || d.status === "queued") && (
                 <>
                   <Progress value={pct ?? 0} animated={d.status === "downloading"} striped />
-                  <Text size="xs" c="dimmed">
-                    {d.status === "queued"
-                      ? t("downloads.queuedHint")
-                      : t("downloads.progress", {
-                          done: formatBytes(d.bytes_done),
-                          total: formatBytes(d.bytes_total),
-                          pct: pct ?? 0,
-                          speed: d.speed_bps ? `${formatBytes(d.speed_bps)}/s` : "—",
-                          eta: left != null ? formatDuration(left, i18n.language) : "—",
-                        })}
-                  </Text>
+                  <ProgressLine d={d} />
                 </>
               )}
               {d.status === "failed" && d.error && (
