@@ -68,7 +68,9 @@ def _resolve_rule(
     return fallback, Explanation(field=field, key="presets.explain.fixed", params={"value": fallback})
 
 
-FIT_OVERHEAD_BYTES = 3 * 2**30
+# Measured on Spark (vLLM 0.30.1rc1): non-torch + peak activation + CUDA graph =
+#   7B bf16: 2.02 + 1.24 GiB = 3.26 GiB;  7B AWQ: 1.58 + 1.32 + 0.53 GiB = 3.43 GiB.
+FIT_OVERHEAD_BYTES = int(3.5 * 2**30)
 
 
 def model_need_bytes(model: ModelMeta, max_model_len: int) -> int | None:

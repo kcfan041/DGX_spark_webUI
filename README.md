@@ -69,7 +69,8 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 
 ## 待辦
 
-- [ ] 量化模型實測（AWQ / FP8 / NVFP4）
+- [x] 量化模型實測：AWQ（2026-10-07，自動辨識、正常啟動、記憶體預估校正）
+- [ ] 量化模型實測：FP8 / NVFP4
 - [ ] 網頁變更管理者 Token（輸入舊 Token + 新 Token，存在平台資料庫並優先於 deploy/.env，改完需重新登入）
 - [ ] 英文翻譯
 
