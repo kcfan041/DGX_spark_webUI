@@ -13,6 +13,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useAdvancedSettings, useModelSources, useSystemInfo } from "@/api/hooks";
 import { QueryState } from "@/components/QueryState";
+import { AdminTokenCard } from "@/components/settings/AdminTokenCard";
 import { AdvancedCard } from "@/components/settings/AdvancedCard";
 import { ApiBaseCard } from "@/components/settings/ApiBaseCard";
 import { HfTokenCard } from "@/components/settings/HfTokenCard";
@@ -58,6 +59,8 @@ export function SettingsPage() {
           data-testid="theme-setting"
         />
       </Card>
+
+      <AdminTokenCard />
 
       <ApiBaseCard />
 

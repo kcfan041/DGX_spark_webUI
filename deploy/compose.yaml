@@ -61,7 +61,7 @@ services:
 
   litellm:
     <<: *restart
-    image: ${LITELLM_IMAGE:-docker.litellm.ai/berriai/litellm:main-stable}
+    image: ${LITELLM_IMAGE_OVERRIDE:-docker.litellm.ai/berriai/litellm:v1.104.0@sha256:625981c83410a3ea68eb0697590a57ec1d764d634514d54fa5db0591077ee839}
     ports:
       - "${GATEWAY_BIND:-0.0.0.0}:${GATEWAY_PORT:-4000}:4000"
     environment:

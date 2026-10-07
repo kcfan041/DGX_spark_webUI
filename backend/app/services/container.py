@@ -10,13 +10,16 @@ from app.adapters.metrics import MetricsProvider
 from app.adapters.model_sources import HFCacheSource, LocalDirSource, ModelCatalog, ModelSource
 from app.core.settings import Settings
 from app.db.settings_store import get_setting
+from app.domain.instance import GatewayState, InstanceStatus
 from app.profiles import RuntimeProfile, load_profile
+from app.services.cloud import CloudService
 from app.services.downloads import DownloadManager, Fetcher, HFHubClient
 from app.services.error_classifier import ErrorClassifier
 from app.services.instance_manager import InstanceManager
 from app.services.planner import Planner
 from app.services.presets import PresetResolver
 from app.services.probe import VllmProbe
+from app.services.routing import RoutingService
 from app.services.runtime_settings import RuntimeSettings
 
 HF_TOKEN_KEY = "hf_token"
@@ -38,8 +41,11 @@ class Services:
     downloads: DownloadManager
     runtime: RuntimeSettings
     hub: HFHubClient
+    cloud: CloudService
+    routing: RoutingService
 
     async def aclose(self) -> None:
+        await self.routing.shutdown()
         await self.downloads.shutdown()
         await self.manager.shutdown()
         await self.probe.aclose()
@@ -97,6 +103,17 @@ def build_services(settings: Settings, engine: Engine) -> Services:
         container_prefix=settings.container_prefix,
         health_timeout_s=runtime_settings.health_timeout_s,
     )
+    routing = RoutingService(
+        engine,
+        litellm,
+        local_names=lambda: {i.served_model_name for i in manager.all()},
+        registered_names=lambda: {
+            i.served_model_name
+            for i in manager.all()
+            if i.status == InstanceStatus.READY and i.gateway_state in (GatewayState.PENDING, GatewayState.REGISTERED)
+        },
+    )
+    manager.on_gateway_change = routing.sync_aliases
     return Services(
         settings=settings,
         profile=profile,
@@ -112,6 +129,8 @@ def build_services(settings: Settings, engine: Engine) -> Services:
         downloads=downloads,
         runtime=runtime_settings,
         hub=hub,
+        cloud=CloudService(litellm),
+        routing=routing,
     )
 
 

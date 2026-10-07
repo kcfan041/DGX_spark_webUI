@@ -6,12 +6,14 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import auth, downloads, gateway, instances, logs, models, system
+from app.api import auth, cloud, downloads, gateway, instances, logs, models, system, usage
 from app.api import settings as settings_api
+from app.api.auth import ADMIN_HASH_KEY
 from app.core.logging import configure_logging
 from app.core.security import build_auth_provider
 from app.core.settings import Settings, get_settings
 from app.db.session import build_engine, init_db
+from app.db.settings_store import get_setting
 from app.services.container import build_services
 
 log = logging.getLogger("dgxsp")
@@ -30,12 +32,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         services = build_services(settings, engine)
         app.state.services = services
         services.runtime.apply_logging()
-        app.state.auth_provider = build_auth_provider()
-        if not settings.admin_token.get_secret_value():
+        app.state.auth_provider = build_auth_provider(lambda: get_setting(engine, ADMIN_HASH_KEY))
+        if not settings.admin_token.get_secret_value() and not get_setting(engine, ADMIN_HASH_KEY):
             log.warning("DGXSP_ADMIN_TOKEN is empty: all authenticated endpoints will reject requests")
         if settings.manager_enabled:
             await services.manager.startup()
             await services.downloads.startup()
+            services.routing.start()
         log.info("started profile=%s image=%s", settings.profile, services.profile.vllm.image)
         try:
             yield
@@ -65,6 +68,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api.include_router(gateway.router)
     api.include_router(logs.router)
     api.include_router(settings_api.router)
+    api.include_router(cloud.router)
+    api.include_router(usage.router)
     app.include_router(api)
     return app
 

@@ -16,6 +16,8 @@
     "models": "Models",
     "services": "Model Services",
     "gateway": "Gateway",
+    "cloud": "Cloud Models",
+    "usage": "Usage",
     "logs": "Logs",
     "settings": "Settings"
   }

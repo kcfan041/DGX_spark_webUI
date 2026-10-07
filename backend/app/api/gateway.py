@@ -8,7 +8,15 @@ from app.api.system import gateway_status
 from app.core.security import CurrentPrincipal
 from app.domain.instance import InstanceStatus
 from app.services import api_base
-from app.services.api_keys import ApiKeyOut, ApiKeyService, CreatedKey, CreateKeyRequest, KeyError_
+from app.services.api_keys import (
+    ApiKeyOut,
+    ApiKeyService,
+    CreatedKey,
+    CreateKeyRequest,
+    KeyError_,
+    UpdateKeyRequest,
+)
+from app.services.cloud import CloudError
 
 router = APIRouter(prefix="/gateway", tags=["gateway"])
 
@@ -23,14 +31,25 @@ async def gateway_state(svc: Svc, _: CurrentPrincipal) -> dict[str, Any]:
 
 
 @router.get("/connection-info")
-def connection_info(request: Request, svc: Svc, _: CurrentPrincipal) -> dict[str, Any]:
+async def connection_info(request: Request, svc: Svc, _: CurrentPrincipal) -> dict[str, Any]:
     ready = [
         i.served_model_name
         for i in svc.manager.all()
         if i.status == InstanceStatus.READY and i.gateway_model_id is not None
     ]
+    try:
+        cloud = sorted({str(m.get("model_name")) for m in await svc.cloud.cloud_models_raw()} - set(ready))
+    except CloudError:
+        cloud = []
     info = api_base.resolve(request, svc.settings, request.app.state.engine)
-    return {"api_base": info.effective, "source": info.source, "warnings": info.warnings, "models": ready}
+    return {
+        "api_base": info.effective,
+        "source": info.source,
+        "warnings": info.warnings,
+        "models": ready + cloud,
+        "local_models": ready,
+        "cloud_models": cloud,
+    }
 
 
 @router.get("/models")
@@ -107,6 +126,26 @@ async def create_key(body: CreateKeyRequest, svc: Svc, _: CurrentPrincipal) -> C
 async def revoke_key(key_id: str, svc: Svc, _: CurrentPrincipal) -> ApiKeyOut:
     try:
         return await _keys(svc).revoke(key_id)
+    except GatewayError as e:
+        raise _gateway_down(e) from e
+    except KeyError_ as e:
+        raise _key_error(e) from e
+
+
+@router.patch("/keys/{key_id}", response_model=ApiKeyOut)
+async def update_key(key_id: str, body: UpdateKeyRequest, svc: Svc, _: CurrentPrincipal) -> ApiKeyOut:
+    try:
+        return await _keys(svc).update(key_id, body)
+    except GatewayError as e:
+        raise _gateway_down(e) from e
+    except KeyError_ as e:
+        raise _key_error(e) from e
+
+
+@router.post("/keys/{key_id}/rotate", response_model=CreatedKey)
+async def rotate_key(key_id: str, svc: Svc, _: CurrentPrincipal) -> CreatedKey:
+    try:
+        return await _keys(svc).rotate(key_id)
     except GatewayError as e:
         raise _gateway_down(e) from e
     except KeyError_ as e:

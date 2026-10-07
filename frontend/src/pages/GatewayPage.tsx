@@ -1,7 +1,7 @@
-import { Accordion, Alert, Anchor, Badge, Button, Card, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Accordion, Alert, Anchor, Badge, Button, Card, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { IconKey, IconPlus, IconRefresh } from "@tabler/icons-react";
+import { IconDots, IconKey, IconPlus, IconRefresh } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -13,8 +13,11 @@ import {
   useGatewayStatus,
   useResync,
   useRevokeApiKey,
+  useRotateApiKey,
 } from "@/api/hooks";
-import type { ApiKeyInfo } from "@/api/types";
+import type { ApiKeyInfo, CreatedApiKey } from "@/api/types";
+import { EditKeyModal } from "@/components/gateway/EditKeyModal";
+import { limitsSummary } from "@/lib/usage";
 import { QueryState } from "@/components/QueryState";
 import { CreateKeyModal } from "@/components/gateway/CreateKeyModal";
 import { ApiBaseWarnings, SourceBadge } from "@/components/settings/ApiBaseCard";
@@ -32,7 +35,10 @@ export function GatewayPage() {
   const revoke = useRevokeApiKey();
   const resync = useResync();
   const cleanup = useCleanupGatewayModel();
+  const rotate = useRotateApiKey();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<ApiKeyInfo | null>(null);
+  const [rotated, setRotated] = useState<CreatedApiKey | null>(null);
 
   const reachable = status.data?.reachable;
   const apiBase = conn.data?.api_base ?? "";
@@ -49,6 +55,21 @@ export function GatewayPage() {
           onError: notifyError,
         }),
     });
+
+  const confirmRotate = (k: ApiKeyInfo) =>
+    modals.openConfirmModal({
+      title: t("gateway.keys.rotateTitle"),
+      children: <Text size="sm">{t("gateway.keys.rotateBody", { name: k.name })}</Text>,
+      labels: { confirm: t("gateway.keys.rotate"), cancel: t("common.cancel") },
+      confirmProps: { color: "orange" },
+      onConfirm: () =>
+        rotate.mutate(k.id, {
+          onSuccess: (created) => setRotated(created),
+          onError: notifyError,
+        }),
+    });
+
+  const modelNames = conn.data?.models ?? [];
 
   return (
     <Stack>
@@ -123,6 +144,7 @@ export function GatewayPage() {
                 <Table.Tr>
                   <Table.Th>{t("gateway.keys.name")}</Table.Th>
                   <Table.Th>Key</Table.Th>
+                  <Table.Th>{t("keyLimits.column")}</Table.Th>
                   <Table.Th>{t("gateway.keys.createdAt")}</Table.Th>
                   <Table.Th>{t("gateway.keys.status")}</Table.Th>
                   <Table.Th />
@@ -137,17 +159,35 @@ export function GatewayPage() {
                         {k.masked}
                       </Text>
                     </Table.Td>
+                    <Table.Td>
+                      <LimitsCell k={k} />
+                    </Table.Td>
                     <Table.Td>{formatTime(k.created_at)}</Table.Td>
                     <Table.Td>
-                      <Badge color={k.status === "active" ? "teal" : "gray"} variant="light">
+                      <Badge color={k.status === "active" ? "teal" : k.status === "expired" ? "orange" : "gray"} variant="light">
                         {t(`gateway.keys.${k.status}`)}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      {k.status === "active" && (
-                        <Button size="xs" color="red" variant="subtle" onClick={() => confirmRevoke(k)}>
-                          {t("gateway.keys.revoke")}
-                        </Button>
+                      {k.status !== "revoked" && (
+                        <Menu position="bottom-end" withinPortal>
+                          <Menu.Target>
+                            <Button size="xs" variant="subtle" px={6} aria-label={t("common.more")} data-testid={`key-menu-${k.name}`}>
+                              <IconDots size={16} />
+                            </Button>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item onClick={() => setEditing(k)} data-testid="key-edit">
+                              {t("keyLimits.edit")}
+                            </Menu.Item>
+                            <Menu.Item onClick={() => confirmRotate(k)} data-testid="key-rotate">
+                              {t("gateway.keys.rotate")}
+                            </Menu.Item>
+                            <Menu.Item color="red" onClick={() => confirmRevoke(k)} data-testid="key-revoke">
+                              {t("gateway.keys.revoke")}
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
                       )}
                     </Table.Td>
                   </Table.Tr>
@@ -253,11 +293,47 @@ export function GatewayPage() {
       </Accordion>
 
       <CreateKeyModal
-        opened={creating}
-        onClose={() => setCreating(false)}
+        opened={creating || rotated !== null}
+        onClose={() => {
+          setCreating(false);
+          setRotated(null);
+        }}
         apiBase={apiBase}
         exampleModel={conn.data?.models[0] ?? null}
+        models={modelNames}
+        rotated={rotated}
       />
+      <EditKeyModal apiKey={editing} onClose={() => setEditing(null)} models={modelNames} />
+    </Stack>
+  );
+}
+
+function LimitsCell({ k }: { k: ApiKeyInfo }) {
+  const { t } = useTranslation();
+  const parts = limitsSummary(k.limits, t);
+  return (
+    <Stack gap={2}>
+      {parts.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          {t("keyLimits.none")}
+        </Text>
+      ) : (
+        parts.map((p) => (
+          <Text size="xs" key={p}>
+            {p}
+          </Text>
+        ))
+      )}
+      {k.expires_at && (
+        <Text size="xs" c={k.status === "expired" ? "orange" : "dimmed"}>
+          {t("keyLimits.expiresAt", { time: formatTime(k.expires_at) })}
+        </Text>
+      )}
+      {k.spend > 0 && (
+        <Text size="xs" c="dimmed">
+          {t("keyLimits.spent", { amount: k.spend.toFixed(4) })}
+        </Text>
+      )}
     </Stack>
   );
 }

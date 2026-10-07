@@ -2,7 +2,9 @@ import { AppShell, Burger, Button, Group, NavLink, Text, ThemeIcon, Title } from
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconBox,
+  IconChartBar,
   IconCircleFilled,
+  IconCloud,
   IconFileText,
   IconLayoutDashboard,
   IconRoute,
@@ -21,6 +23,8 @@ const NAV = [
   { to: "/models", key: "nav.models", icon: IconBox },
   { to: "/services", key: "nav.services", icon: IconServer },
   { to: "/gateway", key: "nav.gateway", icon: IconRoute },
+  { to: "/cloud", key: "nav.cloud", icon: IconCloud },
+  { to: "/usage", key: "nav.usage", icon: IconChartBar },
   { to: "/logs", key: "nav.logs", icon: IconFileText },
   { to: "/settings", key: "nav.settings", icon: IconSettings },
 ] as const;

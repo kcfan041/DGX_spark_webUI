@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "@/auth/RequireAuth";
 import { AppLayout } from "@/layout/AppLayout";
+import { CloudPage } from "@/pages/CloudPage";
+import { UsagePage } from "@/pages/UsagePage";
 import { CreateServicePage } from "@/pages/CreateServicePage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { GatewayPage } from "@/pages/GatewayPage";
@@ -28,6 +30,8 @@ export function App() {
         <Route path="/services/new" element={<CreateServicePage />} />
         <Route path="/services/:id" element={<ServiceDetailPage />} />
         <Route path="/gateway" element={<GatewayPage />} />
+        <Route path="/cloud" element={<CloudPage />} />
+        <Route path="/usage" element={<UsagePage />} />
         <Route path="/logs" element={<LogsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

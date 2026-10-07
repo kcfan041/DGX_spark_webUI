@@ -8,6 +8,7 @@ import type { Instance, Suggestion } from "@/api/types";
 import { QueryState } from "@/components/QueryState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EditSettings, type EditSettingsHandle } from "@/components/service/EditSettings";
+import { LocalPriceCard } from "@/components/service/LocalPriceCard";
 import { ErrorCard } from "@/components/service/ErrorCard";
 import { EventsTimeline } from "@/components/service/EventsTimeline";
 import { HowToUse } from "@/components/service/HowToUse";
@@ -236,6 +237,7 @@ export function ServiceDetailPage() {
                     setTab("settings");
                   }}
                 />
+                <LocalPriceCard instanceId={inst.id} />
               </Stack>
             </Tabs.Panel>
 

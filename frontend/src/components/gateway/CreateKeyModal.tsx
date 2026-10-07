@@ -1,10 +1,12 @@
-import { Alert, Button, Checkbox, Code, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
+import { Accordion, Alert, Button, Checkbox, Code, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { CopyButton } from "@/components/CopyButton";
 import { IconAlertTriangle, IconCheck, IconCopy } from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateApiKey } from "@/api/hooks";
-import type { CreatedApiKey } from "@/api/types";
+import type { CreatedApiKey, KeyExpiry, KeyLimits } from "@/api/types";
+import { KeyLimitsFields } from "@/components/gateway/KeyLimitsFields";
+import { EMPTY_LIMITS } from "@/lib/usage";
 import { useApiErrorNotifier } from "@/hooks/useApiError";
 
 interface Props {
@@ -12,6 +14,8 @@ interface Props {
   onClose: () => void;
   apiBase: string;
   exampleModel: string | null;
+  models?: string[];
+  rotated?: CreatedApiKey | null;
 }
 
 function Copy({ value, label, testId }: { value: string; label: string; testId?: string }) {
@@ -34,16 +38,21 @@ function Copy({ value, label, testId }: { value: string; label: string; testId?:
   );
 }
 
-export function CreateKeyModal({ opened, onClose, apiBase, exampleModel }: Props) {
+export function CreateKeyModal({ opened, onClose, apiBase, exampleModel, models = [], rotated = null }: Props) {
   const { t } = useTranslation();
   const create = useCreateApiKey();
   const notifyError = useApiErrorNotifier();
   const [name, setName] = useState("");
-  const [created, setCreated] = useState<CreatedApiKey | null>(null);
+  const [expiry, setExpiry] = useState<KeyExpiry | null>(null);
+  const [limits, setLimits] = useState<KeyLimits>(EMPTY_LIMITS);
+  const [createdState, setCreated] = useState<CreatedApiKey | null>(null);
   const [saved, setSaved] = useState(false);
+  const created = rotated ?? createdState;
 
   const reset = () => {
     setName("");
+    setExpiry(null);
+    setLimits(EMPTY_LIMITS);
     setCreated(null);
     setSaved(false);
     create.reset();
@@ -56,7 +65,7 @@ export function CreateKeyModal({ opened, onClose, apiBase, exampleModel }: Props
   };
 
   const submit = () =>
-    create.mutate(name.trim(), {
+    create.mutate({ name: name.trim(), expires_in: expiry, ...limits }, {
       onSuccess: (k) => setCreated(k),
       onError: notifyError,
     });
@@ -72,7 +81,7 @@ export function CreateKeyModal({ opened, onClose, apiBase, exampleModel }: Props
     <Modal
       opened={opened}
       onClose={close}
-      title={created ? t("gateway.keys.createdTitle") : t("gateway.keys.createTitle")}
+      title={rotated ? t("gateway.keys.rotatedTitle") : created ? t("gateway.keys.createdTitle") : t("gateway.keys.createTitle")}
       size="lg"
       closeOnClickOutside={!created}
       closeOnEscape={!created}
@@ -96,6 +105,27 @@ export function CreateKeyModal({ opened, onClose, apiBase, exampleModel }: Props
               data-autofocus
               required
             />
+            <Select
+              label={t("keyLimits.expiry")}
+              data={[
+                { value: "never", label: t("keyLimits.expiryNever") },
+                { value: "7d", label: t("keyLimits.expiry7d") },
+                { value: "30d", label: t("keyLimits.expiry30d") },
+                { value: "90d", label: t("keyLimits.expiry90d") },
+                { value: "365d", label: t("keyLimits.expiry365d") },
+              ]}
+              value={expiry ?? "never"}
+              onChange={(v) => setExpiry(v && v !== "never" ? (v as KeyExpiry) : null)}
+              allowDeselect={false}
+            />
+            <Accordion variant="contained">
+              <Accordion.Item value="limits">
+                <Accordion.Control data-testid="limits-toggle">{t("keyLimits.title")}</Accordion.Control>
+                <Accordion.Panel>
+                  <KeyLimitsFields value={limits} onChange={setLimits} models={models} />
+                </Accordion.Panel>
+              </Accordion.Item>
+            </Accordion>
             <Group justify="flex-end">
               <Button variant="default" onClick={close}>
                 {t("common.cancel")}
@@ -117,6 +147,11 @@ export function CreateKeyModal({ opened, onClose, apiBase, exampleModel }: Props
           <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
             {t("gateway.keys.onlyOnce")}
           </Alert>
+          {rotated && (
+            <Text size="sm" c="dimmed">
+              {t("gateway.keys.rotatedNote")}
+            </Text>
+          )}
           <Group gap="xs">
             <Copy value={created.key} label={t("gateway.keys.copyKey")} testId="copy-key" />
             <Copy value={apiBase} label={t("gateway.keys.copyBase")} />

@@ -18,7 +18,7 @@ describe("GatewayPage", () => {
       ],
       "GET /gateway/keys": () => keys,
       "POST /gateway/keys": () => {
-        const row = { id: "h1", name: "院內系統A", masked: "sk-...STUV", status: "active", created_at: "2026-10-05T06:35:09Z", last_active: null, system: false };
+        const row = { id: "h1", name: "院內系統A", masked: "sk-...STUV", status: "active", created_at: "2026-10-05T06:35:09Z", last_active: null, system: false, expires_at: null, spend: 0, budget_reset_at: null, limits: { max_budget: null, budget_duration: null, rpm_limit: null, tpm_limit: null, models: [] } };
         keys = [row];
         return { ...row, key: FULL_KEY };
       },
@@ -46,7 +46,15 @@ describe("GatewayPage", () => {
     await waitFor(() => expect(screen.queryByTestId("new-key")).not.toBeInTheDocument());
     await screen.findByText("sk-...STUV");
     expect(screen.queryByText(FULL_KEY)).not.toBeInTheDocument();
-    expect(calls.find((c) => c.method === "POST" && c.url.endsWith("/gateway/keys"))?.body).toEqual({ name: "院內系統A" });
+    expect(calls.find((c) => c.method === "POST" && c.url.endsWith("/gateway/keys"))?.body).toEqual({
+      name: "院內系統A",
+      expires_in: null,
+      max_budget: null,
+      budget_duration: null,
+      rpm_limit: null,
+      tpm_limit: null,
+      models: [],
+    });
   });
 
   it("disables key creation when gateway is down", async () => {

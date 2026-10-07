@@ -307,14 +307,38 @@ export interface TestResult {
   error: string | null;
 }
 
+export type BudgetPeriod = "1d" | "7d" | "30d";
+export type KeyExpiry = "7d" | "30d" | "90d" | "365d";
+
+export interface KeyLimits {
+  max_budget: number | null;
+  budget_duration: BudgetPeriod | null;
+  rpm_limit: number | null;
+  tpm_limit: number | null;
+  models: string[];
+}
+
 export interface ApiKeyInfo {
   id: string;
   name: string;
   masked: string;
-  status: "active" | "revoked";
+  status: "active" | "revoked" | "expired";
   created_at: string | null;
   last_active: string | null;
+  expires_at: string | null;
   system: boolean;
+  spend: number;
+  limits: KeyLimits;
+  budget_reset_at: string | null;
+}
+
+export interface CreateKeyBody extends KeyLimits {
+  name: string;
+  expires_in: KeyExpiry | null;
+}
+
+export interface UpdateKeyBody extends KeyLimits {
+  name?: string;
 }
 
 export interface CreatedApiKey extends ApiKeyInfo {
@@ -398,4 +422,112 @@ export interface AutostartProgress {
   queue: string[];
   current: string | null;
   results: Record<string, string>;
+}
+
+export type ProviderType = "openai" | "anthropic" | "gemini" | "openai_compatible";
+
+export interface ProviderSpec {
+  type: ProviderType;
+  needs_api_base: boolean;
+  api_key_required: boolean;
+  test_model: string | null;
+  catalog_provider: string | null;
+  key_url: string | null;
+}
+
+export interface CloudProvider {
+  id: string;
+  type: ProviderType;
+  name: string;
+  api_base: string | null;
+  masked_key: string | null;
+  models: number;
+}
+
+export interface ConnTestResult {
+  ok: boolean;
+  model: string;
+  error: string | null;
+}
+
+export interface CatalogModel {
+  id: string;
+  input_per_mtok: number | null;
+  output_per_mtok: number | null;
+  max_input_tokens: number | null;
+}
+
+export interface CloudModel {
+  id: string;
+  name: string;
+  model: string;
+  provider_id: string | null;
+  provider_name: string | null;
+  provider_type: ProviderType | null;
+  input_per_mtok: number | null;
+  output_per_mtok: number | null;
+  custom_price: boolean;
+}
+
+export interface FallbackRule {
+  model: string;
+  targets: string[];
+  active_alias: string | null;
+}
+
+export interface RoutingInfo {
+  fallbacks: FallbackRule[];
+  num_retries: number | null;
+  models: string[];
+}
+
+export interface UsageMetrics {
+  requests: number;
+  successful: number;
+  failed: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  spend: number;
+}
+
+export interface UsageRow {
+  id: string;
+  label: string;
+  kind: "model" | "key" | "revoked" | "system" | "admin" | "unknown";
+  metrics: UsageMetrics;
+}
+
+export interface UsageSummary {
+  start: string;
+  end: string;
+  totals: UsageMetrics;
+  days: { date: string; metrics: UsageMetrics }[];
+  by_model: UsageRow[];
+  by_key: UsageRow[];
+}
+
+export interface UsageLog {
+  request_id: string;
+  time: string | null;
+  model: string | null;
+  key_name: string | null;
+  status: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  spend: number;
+  duration_ms: number | null;
+}
+
+export interface UsageLogPage {
+  items: UsageLog[];
+  page: number;
+  total_pages: number;
+  total: number;
+  capped: boolean;
+}
+
+export interface LocalPrice {
+  input_per_mtok: number;
+  output_per_mtok: number;
 }

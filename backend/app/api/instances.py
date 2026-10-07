@@ -20,6 +20,7 @@ from app.domain.params import InstanceParams, ParamField, build_command, param_s
 from app.services.instance_manager import AutostartProgress, ConflictError, NotFoundError, TestResult
 from app.services.planner import Plan, PlanInput, PlanningError
 from app.services.presets import ResolvedPreset
+from app.services.pricing import LocalPrice
 
 router = APIRouter(tags=["instances"])
 log = logging.getLogger(__name__)
@@ -334,6 +335,22 @@ async def test(instance_id: str, body: TestRequest, svc: Svc, _: CurrentPrincipa
         raise _not_found() from e
     except ConflictError as e:
         raise _conflict(e) from e
+
+
+@router.get("/instances/{instance_id}/price", response_model=LocalPrice)
+def get_price(instance_id: str, svc: Svc, _: CurrentPrincipal) -> LocalPrice:
+    try:
+        return svc.manager.local_price(instance_id)
+    except NotFoundError as e:
+        raise _not_found() from e
+
+
+@router.put("/instances/{instance_id}/price", response_model=LocalPrice)
+async def put_price(instance_id: str, body: LocalPrice, svc: Svc, _: CurrentPrincipal) -> LocalPrice:
+    try:
+        return await svc.manager.set_local_price(instance_id, body)
+    except NotFoundError as e:
+        raise _not_found() from e
 
 
 # ---------------------------------------------------------------- logs

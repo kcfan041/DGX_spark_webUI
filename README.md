@@ -63,16 +63,34 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] P3：Gateway 頁（API Key 建立 / 只顯示一次 / 撤銷、已發布模型同步與清除、連線資訊）
 - [x] 驗證 2.0：7B、同時運行、真實 OOM、重開機自動啟動（docs/spark-validation.md）
 - [x] 下載模型：網頁輸入 Hugging Face repo ID → 預檢（大小、磁碟、授權）→ 背景下載（進度、取消、重試）→ 自動出現在模型清單；刪除模型檔案
-- [ ] 量化模型實測
 - [x] 小功能：GPU 指標、模型詳細、外部服務詳情、Logs 加 Gateway / Backend
 - [x] 網頁進階設定：模型載入逾時（15–120 分鐘）、Hugging Face 鏡像站（含 Spark 端測試連線）、完整 API 記錄開關（皆即時生效）
+- [x] LiteLLM 版本固定（v1.104.0 digest，deploy/compose.yaml）
+- [x] 雲端模型：服務商（OpenAI / Anthropic / Gemini / OpenAI 相容）、API Key 由 LiteLLM 加密保存、測試連線、從牌價清單加入模型、自訂單價
+- [x] 備援（Fallback）與重試次數；本地服務停止時自動轉給備援模型、重新啟動後自動恢復
+- [x] 用量統計：請求 / Token / 花費，依模型或 API Key，每日趨勢、最近請求
+- [x] API Key 限制：可用模型、花費上限（每天 / 週 / 月）、RPM、TPM、有效期限；編輯、換新 Key（舊 Key 停用）
+- [x] 本地模型虛擬單價（預設 0）
+- [x] 網頁變更管理者 Token
 
 ## 待辦
 
 - [x] 量化模型實測：AWQ（2026-10-07，自動辨識、正常啟動、記憶體預估校正）
 - [ ] 量化模型實測：FP8 / NVFP4
-- [ ] 網頁變更管理者 Token（輸入舊 Token + 新 Token，存在平台資料庫並優先於 deploy/.env，改完需重新登入）
+- [ ] 雲端模型以真實 API Key 在 Spark 實測
 - [ ] 英文翻譯
+- [ ] Team（多人 / 多應用分組，最後做）
+
+## 忘記管理者 Token
+
+在網頁改過 Token 後，`deploy/.env` 的 `DGXSP_ADMIN_TOKEN` 就不再有效。忘記時在 Spark 上執行（清掉網頁設定的 Token，恢復使用 `deploy/.env` 的值）：
+
+```bash
+docker compose --env-file deploy/.env -f deploy/compose.yaml exec backend \
+  python -c "from app.db.session import build_engine; from app.db.settings_store import set_setting; from app.core.settings import get_settings; set_setting(build_engine(get_settings().db_url), 'admin_token_hash', None); print('reset ok')"
+```
+
+`deploy/.env` 的 Token 可用 `grep DGXSP_ADMIN_TOKEN deploy/.env` 查看。
 
 ## mock-vllm 失敗模擬（dev profile）
 

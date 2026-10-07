@@ -3,7 +3,7 @@ import contextlib
 import logging
 import secrets
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -23,6 +23,7 @@ from app.profiles import RuntimeProfile
 from app.services.error_classifier import ErrorClassifier, make_error, tailor_suggestions
 from app.services.planner import Plan, PlanInput, Planner
 from app.services.ports import GatewayPort, RuntimePort
+from app.services.pricing import LocalPrice, get_price, set_price
 from app.services.probe import Probe
 
 log = logging.getLogger(__name__)
@@ -117,6 +118,14 @@ class InstanceManager:
         # vLLM sizes its memory reservation from free memory at startup; loading two models at the same
         # time makes both see stale free memory (measured on Spark: 0.5B failed while 7B was loading).
         self._load_gate = asyncio.Lock()
+        self.on_gateway_change: Callable[[], Awaitable[Any]] | None = None
+
+    async def _notify_gateway_change(self) -> None:
+        if self.on_gateway_change is not None:
+            try:
+                await self.on_gateway_change()
+            except Exception:
+                log.exception("gateway change hook failed")
 
     # ------------------------------------------------------------------ helpers
 
@@ -254,6 +263,7 @@ class InstanceManager:
                 if row:
                     s.delete(row)
                 s.commit()
+            set_price(self.engine, instance_id, None)
         self._locks.pop(instance_id, None)
 
     # ------------------------------------------------------------------ lifecycle
@@ -458,11 +468,16 @@ class InstanceManager:
 
     async def _register(self, instance_id: str) -> bool:
         inst = self.get(instance_id)
+        price_in, price_out = get_price(self.engine, inst.id).per_token()
+        # A fallback alias for this name (set while it was stopped) would shadow the real model: drop it first.
+        await self._notify_gateway_change()
         try:
             model_id = await self.gateway.register_model(
                 served_model_name=inst.served_model_name,
                 api_base=f"{self.internal_base(inst)}/v1",
                 instance_id=inst.id,
+                input_cost_per_token=price_in,
+                output_cost_per_token=price_out,
             )
         except GatewayError as e:
             code = ErrorCode.GATEWAY_REGISTER_FAILED if e.status_code else ErrorCode.GATEWAY_UNREACHABLE
@@ -487,7 +502,26 @@ class InstanceManager:
             last_error=None,
         )
         self.event(instance_id, "gateway_registered", model_id=model_id)
+        await self._notify_gateway_change()
         return True
+
+    def local_price(self, instance_id: str) -> LocalPrice:
+        self.get(instance_id)
+        return get_price(self.engine, instance_id)
+
+    async def set_local_price(self, instance_id: str, price: LocalPrice) -> LocalPrice:
+        inst = self.get(instance_id)
+        set_price(self.engine, instance_id, price)
+        if inst.gateway_state == GatewayState.REGISTERED and inst.gateway_model_id:
+            price_in, price_out = price.per_token()
+            try:
+                await self.gateway.update_model_params(
+                    inst.gateway_model_id, {"input_cost_per_token": price_in, "output_cost_per_token": price_out}
+                )
+            except GatewayError as e:
+                log.warning("price update failed for %s: %s", instance_id, e)
+        self.event(instance_id, "price_updated", input=price.input_per_mtok, output=price.output_per_mtok)
+        return price
 
     async def retry_gateway(self, instance_id: str) -> Instance:
         inst = self.get(instance_id)
@@ -512,6 +546,8 @@ class InstanceManager:
                 self.event(inst.id, "gateway_removed", model_id=mid)
             except GatewayError as e:
                 log.warning("gateway delete failed for %s: %s", mid, e)
+        if ids:
+            await self._notify_gateway_change()
 
     # ------------------------------------------------------------------ test / logs
 
