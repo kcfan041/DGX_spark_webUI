@@ -72,13 +72,13 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.d
 - [x] API Key 限制：可用模型、花費上限（每天 / 週 / 月）、RPM、TPM、有效期限；編輯、換新 Key（舊 Key 停用）
 - [x] 本地模型虛擬單價（預設 0）
 - [x] 網頁變更管理者 Token
+- [x] 英文介面（設定 → 介面語言；測試確保中英 key 一致、英文無殘留中文）
 
 ## 待辦
 
 - [x] 量化模型實測：AWQ（2026-10-07，自動辨識、正常啟動、記憶體預估校正）
 - [ ] 量化模型實測：FP8 / NVFP4
 - [ ] 雲端模型以真實 API Key 在 Spark 實測
-- [ ] 英文翻譯
 - [ ] Team（多人 / 多應用分組，最後做）
 
 ## 忘記管理者 Token

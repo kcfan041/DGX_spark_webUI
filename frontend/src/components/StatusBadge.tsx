@@ -17,7 +17,10 @@ export function StatusBadge({ instance, showTimer = true }: Props) {
   const now = useNow(loading && showTimer);
   let label = t(`status.${ds}`);
   if (ds === "ERROR" && instance.last_error?.code) {
-    label = `${label}：${t(`errors.${instance.last_error.code}.title`, { defaultValue: instance.last_error.code })}`;
+    label = t("common.labelValue", {
+      label,
+      value: t(`errors.${instance.last_error.code}.title`, { defaultValue: instance.last_error.code }),
+    });
   }
   if (loading && showTimer && instance.phase_started_at) {
     label = `${label} ${formatDuration(secondsSince(instance.phase_started_at, now), i18n.language)}`;

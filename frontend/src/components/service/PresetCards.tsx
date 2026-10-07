@@ -60,7 +60,8 @@ export function PresetCards({ presets, value, onChange }: Props) {
                       <List size="xs" spacing={4}>
                         {p.explanations.map((e) => (
                           <List.Item key={e.field}>
-                            <b>{t(`params.${e.field}.label`, { defaultValue: e.field })}</b>：
+                            <b>{t(`params.${e.field}.label`, { defaultValue: e.field })}</b>
+                            {t("common.colon")}
                             {t(e.key, {
                               ...e.params,
                               value:

@@ -283,7 +283,10 @@ export function GatewayPage() {
           <Accordion.Control>{t("gateway.advanced")}</Accordion.Control>
           <Accordion.Panel>
             <Text size="sm">
-              {t("gateway.dbStatus")}：{status.data?.db_connected ? t("dashboard.gatewayOk") : t("dashboard.gatewayDown")}
+              {t("common.labelValue", {
+                label: t("gateway.dbStatus"),
+                value: status.data?.db_connected ? t("dashboard.gatewayOk") : t("dashboard.gatewayDown"),
+              })}
             </Text>
             <Text size="sm" c="dimmed" mt="xs">
               {t("gateway.masterKeyNote")}

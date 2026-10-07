@@ -18,7 +18,7 @@ export function LogsPage() {
       group: t("logs.groupServices"),
       items: services.map((s) => ({
         value: s.id,
-        label: `${s.name}（${t(`status.${s.status}`, { defaultValue: s.status ?? "" })}）`,
+        label: t("common.paren", { text: s.name, inner: t(`status.${s.status}`, { defaultValue: s.status ?? "" }) }),
       })),
     },
     {

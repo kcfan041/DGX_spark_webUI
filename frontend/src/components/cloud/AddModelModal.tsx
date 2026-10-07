@@ -67,7 +67,7 @@ export function AddModelModal({
       <Stack>
         <Select
           label={t("cloud.model.provider")}
-          data={providers.map((p) => ({ value: p.id, label: `${p.name}（${t(`cloud.types.${p.type}`)}）` }))}
+          data={providers.map((p) => ({ value: p.id, label: t("common.paren", { text: p.name, inner: t(`cloud.types.${p.type}`) }) }))}
           value={providerId}
           onChange={setProviderId}
           allowDeselect={false}

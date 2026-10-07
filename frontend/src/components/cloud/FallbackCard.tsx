@@ -22,7 +22,7 @@ export function FallbackCard({ cloudNames }: { cloudNames: string[] }) {
   const models = data?.models ?? [];
   const used = new Set((data?.fallbacks ?? []).map((f) => f.model));
   const cloud = new Set(cloudNames);
-  const label = (m: string) => (cloud.has(m) ? `${m}（${t("cloud.fallback.cloudTag")}）` : m);
+  const label = (m: string) => (cloud.has(m) ? t("common.paren", { text: m, inner: t("cloud.fallback.cloudTag") }) : m);
 
   const save = (model: string, list: string[], done?: () => void) =>
     setFallback.mutate(

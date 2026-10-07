@@ -44,7 +44,7 @@ export function ErrorCard({ error, onSuggestion, onViewLogs }: Props) {
             <Accordion.Item value="ev">
               <Accordion.Control>
                 <Text size="sm">
-                  {t("detail.relatedLog")}（{error.evidence.length}）
+                  {t("common.paren", { text: t("detail.relatedLog"), inner: error.evidence.length })}
                 </Text>
               </Accordion.Control>
               <Accordion.Panel>

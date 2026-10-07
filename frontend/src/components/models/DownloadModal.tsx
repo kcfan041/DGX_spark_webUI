@@ -136,7 +136,7 @@ export function DownloadModal({ opened, onClose }: { opened: boolean; onClose: (
                 <Table.Tr>
                   <Table.Td w={140}>{t("downloads.size")}</Table.Td>
                   <Table.Td>
-                    {formatBytes(result.size_bytes)}（{t("downloads.fileCount", { count: result.files })}）
+                    {t("common.paren", { text: formatBytes(result.size_bytes), inner: t("downloads.fileCount", { count: result.files }) })}
                   </Table.Td>
                 </Table.Tr>
                 <Table.Tr>

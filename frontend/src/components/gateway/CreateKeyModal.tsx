@@ -74,7 +74,7 @@ export function CreateKeyModal({ opened, onClose, apiBase, exampleModel, models 
     ? `curl ${apiBase}/chat/completions \\
   -H "Authorization: Bearer ${created.key}" \\
   -H "Content-Type: application/json" \\
-  -d '{"model": "${exampleModel ?? "<MODEL_NAME>"}", "messages": [{"role": "user", "content": "你好"}]}'`
+  -d '{"model": "${exampleModel ?? "<MODEL_NAME>"}", "messages": [{"role": "user", "content": "${t("common.sampleHello")}"}]}'`
     : "";
 
   return (
@@ -139,7 +139,9 @@ export function CreateKeyModal({ opened, onClose, apiBase, exampleModel, models 
       ) : (
         <Stack>
           <Text size="sm">
-            {t("gateway.keys.name")}：<b>{created.name}</b>
+            {t("gateway.keys.name")}
+            {t("common.colon")}
+            <b>{created.name}</b>
           </Text>
           <Code block data-testid="new-key" style={{ fontSize: 14, wordBreak: "break-all", userSelect: "all" }}>
             {created.key}

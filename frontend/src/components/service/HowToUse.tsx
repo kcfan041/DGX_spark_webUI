@@ -31,18 +31,18 @@ export function CopyValue({ value, label }: { value: string; label?: string }) {
   );
 }
 
-function examples(base: string, model: string) {
+function examples(base: string, model: string, hello: string) {
   return {
     curl: `curl ${base}/chat/completions \\
   -H "Authorization: Bearer <YOUR_API_KEY>" \\
   -H "Content-Type: application/json" \\
-  -d '{"model": "${model}", "messages": [{"role": "user", "content": "你好"}]}'`,
+  -d '{"model": "${model}", "messages": [{"role": "user", "content": "${hello}"}]}'`,
     python: `from openai import OpenAI
 
 client = OpenAI(base_url="${base}", api_key="<YOUR_API_KEY>")
 resp = client.chat.completions.create(
     model="${model}",
-    messages=[{"role": "user", "content": "你好"}],
+    messages=[{"role": "user", "content": "${hello}"}],
 )
 print(resp.choices[0].message.content)`,
     opencode: `{
@@ -62,7 +62,7 @@ export function HowToUse({ instance }: { instance: Instance }) {
   const test = useTestInstance(instance.id);
   const notifyError = useApiErrorNotifier();
   const [content, setContent] = useState(t("detail.testDefault"));
-  const ex = examples(instance.endpoint.api_base, instance.endpoint.model);
+  const ex = examples(instance.endpoint.api_base, instance.endpoint.model, t("common.sampleHello"));
   const canTest = instance.status === "READY" && instance.gateway_state === "registered";
 
   return (

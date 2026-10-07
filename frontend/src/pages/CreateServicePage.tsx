@@ -52,7 +52,7 @@ export function CreateServicePage() {
 
   const applyPreset = (p: ResolvedPreset | undefined, keepNames = true) => {
     if (!p || !model) return;
-    const autoName = (id: string) => `${shortName(model.name)}（${t(`presets.${id}.label`)}）`;
+    const autoName = (id: string) => t("common.paren", { text: shortName(model.name), inner: t(`presets.${id}.label`) });
     setValues((prev) => ({
       display_name:
         keepNames && prev && !(presets.data ?? []).some((x) => autoName(x.id) === prev.display_name)

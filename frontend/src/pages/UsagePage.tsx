@@ -56,7 +56,7 @@ function DailyBars({ data, metric }: { data: UsageSummary; metric: Metric }) {
     <Box>
       <Group gap={2} align="flex-end" h={120} wrap="nowrap" data-testid="usage-bars">
         {data.days.map((d, i) => (
-          <Tooltip key={d.date} label={`${d.date}：${fmt(at(i))}`} withArrow>
+          <Tooltip key={d.date} label={t("common.labelValue", { label: d.date, value: fmt(at(i)) })} withArrow>
             <Box
               style={{
                 flex: 1,

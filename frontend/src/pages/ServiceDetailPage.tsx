@@ -57,7 +57,7 @@ function SettingsSummary({ instance: i, onEdit }: { instance: Instance; onEdit: 
       </Group>
       <Text size="sm">
         {[
-          `${t("wizard.step.preset")}：${t(`presets.${i.preset}.label`, { defaultValue: i.preset })}`,
+          t("common.labelValue", { label: t("wizard.step.preset"), value: t(`presets.${i.preset}.label`, { defaultValue: i.preset }) }),
           `${t("params.max_model_len.label")} ${formatContext(p.max_model_len)}`,
           `${t("params.gpu_memory_utilization.label")} ${Math.round(p.gpu_memory_utilization * 100)}%`,
           `${t("params.quantization.label")} ${p.quantization === "auto" ? t("params.auto") : p.quantization}`,

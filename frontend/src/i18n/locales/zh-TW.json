@@ -138,7 +138,11 @@
     "yes": "是",
     "no": "否",
     "actionFailed": "操作失敗：{{reason}}",
-    "more": "更多"
+    "more": "更多",
+    "paren": "{{text}}（{{inner}}）",
+    "labelValue": "{{label}}：{{value}}",
+    "colon": "：",
+    "sampleHello": "你好"
   },
   "login": {
     "title": "管理者登入",
@@ -466,6 +470,7 @@
     "autostart_queued": "自動啟動排隊中",
     "autostart_ready": "自動啟動：已就緒",
     "autostart_error": "自動啟動：失敗",
+    "price_updated": "修改計費單價",
     "reason": {
       "manual": "手動",
       "created": "建立後啟動",
